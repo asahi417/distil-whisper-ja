@@ -529,7 +529,8 @@ def main():
     )
 
     if model_args.attn_type == "flash_attn":
-        model = model.to_bettertransformer()
+        pass
+        # model = model.to_bettertransformer()
     elif model_args.attn_type not in [None, "flash_attn", "flash_attn_2"]:
         raise ValueError(
             f"Argument `attn_type` is set to {model_args.attn_type}. Should be one of:"

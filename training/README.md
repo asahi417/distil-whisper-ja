@@ -1,16 +1,4 @@
 ## Training Distil-Whisper
-
-This sub-folder contains all the scripts required to train a Distil-Whisper model in your choice of language. They are 
-slightly modified from the original scripts used to distill Whisper for English ASR (as-per the [Distil-Whisper paper](https://arxiv.org/abs/2311.00430)).
-The main difference is that these scripts are written in [PyTorch](https://pytorch.org), whereas the original scripts 
-are in [JAX](https://jax.readthedocs.io/en/latest/#)/[Flax](https://flax.readthedocs.io/en/latest/). These scripts are 
-also made to be easier to run end-to-end, whereas the original scripts require more steps and are somewhat hard-coded 
-for English ASR. Both sets of scripts achieve equivalent downstream results when the hyper-parameters are set equal.
-
-If you are interested in reproducing the original Distil-Whisper checkpoints, we refer you to the sub-folder [Flax Training](./flax/README.md).
-Otherwise, if you wish to distill Whisper on your own language/dataset, we recommend you use these scripts for ease of use
-and the configurability they provide.
-
 Reproducing the Distil-Whisper project requires four stages to be completed in successive order:
 
 1. [Pseudo-labelling](#1-pseudo-labelling)
