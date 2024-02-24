@@ -21,6 +21,7 @@ import csv
 # You can also adapt this script for your own pseudo-labelling tasks. Pointers for this are left as comments.
 import logging
 import os
+import shutil
 import string
 import sys
 import time
@@ -640,12 +641,17 @@ def main():
         else:
             repo_name = training_args.hub_model_id
         create_repo(repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset)
+
+        # ad hock bug fix
+        shutil.move(output_dir, "tmp")
         repo = Repository(
             output_dir,
             clone_from=repo_name,
             token=token,
             repo_type="dataset",
         )
+        shutil.move("tmp", output_dir)
+
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
             git_lfs_extensions = f.read()
