@@ -650,7 +650,7 @@ def main():
             token=token,
             repo_type="dataset",
         )
-        shutil.move("tmp", output_dir)
+        shutil.move("tmp/*", output_dir)
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
