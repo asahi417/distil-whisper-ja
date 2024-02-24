@@ -1,7 +1,6 @@
 import json
 import os.path
 
-import pandas as pd
 from datasets import load_dataset
 from tqdm import tqdm
 
@@ -54,15 +53,15 @@ else:
 stat_tiny = dataset_statistics(data_type="tiny")
 stat_small = dataset_statistics(data_type="small")
 stat_medium = dataset_statistics(data_type="medium")
-stat_large = dataset_statistics(data_type="large")
-stat_all = dataset_statistics(data_type="all")
+# stat_large = dataset_statistics(data_type="large")
+# stat_all = dataset_statistics(data_type="all")
 with open("stats.json", "w") as f:
     json.dump({
         "tiny": stat_tiny,
         "small": stat_small,
         "medium": stat_medium,
-        "large": stat_large,
-        "all": stat_all,
+        # "large": stat_large,
+        # "all": stat_all,
     })
 
 

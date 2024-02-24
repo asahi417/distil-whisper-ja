@@ -184,6 +184,10 @@ class DataTrainingArguments:
         default=128,
         metadata={"help": "Truncate transcriptions that are longer `max_label_length` tokens."},
     )
+    data_size: Optional[int] = field(
+        default=None,
+        metadata={"help": "Data size to be use"},
+    )
     preprocessing_only: bool = field(
         default=False,
         metadata={
@@ -743,7 +747,11 @@ def main():
         )
 
         eval_loader = accelerator.prepare(eval_loader)
-        batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process)
+        if data_args.data_size:
+            batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process,
+                           total=int(data_args.data_size/per_device_eval_batch_size) + 1)
+        else:
+            batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process)
 
         # make the split name pretty for librispeech etc
         split = split.replace(".", "-").split("/")[-1]
