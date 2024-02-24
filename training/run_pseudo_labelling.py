@@ -650,7 +650,8 @@ def main():
             token=token,
             repo_type="dataset",
         )
-        shutil.move("tmp/*", output_dir)
+        shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
+        shutil.rmtree("tmp")
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
