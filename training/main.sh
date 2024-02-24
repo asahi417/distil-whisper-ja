@@ -17,8 +17,8 @@ accelerate launch run_pseudo_labelling.py \
   --wandb_project "${PROJECT_NAME}" \
   --per_device_eval_batch_size 64 \
   --dtype "no" \
-  --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
+  --dataloader_num_workers 11 \
+  --preprocessing_num_workers 16 \
   --logging_steps 500 \
   --max_label_length 128 \
   --language "ja" \
