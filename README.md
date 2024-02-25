@@ -1,402 +1,290 @@
-# Distil-Whisper
+# Japanese Distil-Whisper
+This the adaptation of [official distil-whisper code](https://github.com/huggingface/distil-whisper) into Japanese. Following description is copied from the original repository.
 
-[[Paper]](https://arxiv.org/abs/2311.00430)
-[[Models]](https://huggingface.co/collections/distil-whisper/distil-whisper-models-65411987e6727569748d2eb6)
-[[Colab]](https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/Distil_Whisper_Benchmark.ipynb)
-[[Training Code]](training)
+## Training Distil-Whisper
+Reproducing the Distil-Whisper project requires four stages to be completed in successive order:
 
-Distil-Whisper is a distilled version of Whisper that is **6 times faster**, 49% smaller, and performs **within 1% word 
-error rate (WER)** on out-of-distribution evaluation sets:
+1. [Pseudo-labelling](#1-pseudo-labelling)
+2. [Initialisation](#2-initialisation)
+3. [Training](#3-training)
+4. [Evaluation](#4-evaluation)
 
-| Model                                                                      | Params / M | Rel. Latency ↑ | Short-Form WER ↓ | Long-Form WER ↓ |
-|----------------------------------------------------------------------------|------------|----------------|------------------|-----------------|
-| [large-v2](https://huggingface.co/openai/whisper-large-v2)                 | 1550       | 1.0            | **9.1**          | 11.7            |
-|                                                                            |            |                |                  |                 |
-| [distil-large-v2](https://huggingface.co/distil-whisper/distil-large-v2)   | 756        | 5.8            | 10.1             | **11.6**        |
-| [distil-medium.en](https://huggingface.co/distil-whisper/distil-medium.en) | 394        | **6.8**        | 11.1             | 12.4            |
-| [distil-small.en](https://huggingface.co/distil-whisper/distil-small.en)   | **166**    | 5.6            | 12.1             | 12.8            |
+This README is partitioned according to the four stages. Each section provides a minimal example for running the
+scripts used in the project. We will use a running example of distilling the Whisper model for Hindi speech recognition
+on the Common Voice dataset. Note that this dataset only contains ~20 hours of audio data. Thus, it can be run extremely
+quickly, but does not provide sufficient data to achieve optimal performance. We recommend training on upwards of 1000 
+hours of data should you want to match the performance of Whisper on high-resource languages.
 
-For applications where latency and accuracy are important, we recommend the [distil-medium.en](https://huggingface.co/distil-whisper/distil-medium.en)
-or [distil-large-v2](https://huggingface.co/distil-whisper/distil-large-v2) checkpoints. For resource-constrained applications,
-such as on-device or mobile applications, the [distil-small.en](https://huggingface.co/distil-whisper/distil-small.en) is a great choice, since
-it is only 166M parameters, while performing within 3% WER of Whisper large-v2.
+### Get Started  
 
-**Note:** Distil-Whisper is currently only available for English speech recognition. We are working with the community to distill Whisper on other languages. If you are interested in distilling Whisper in your language, check out the provided [training code](training). We will soon update the repository with multilingual checkpoints when ready!
+- huggingface configuration
+```bash
+accelerate config
+huggingface-cli login
+```
 
-## 1. Usage
+- experiment configuration
+```shell
+export CUDA_VISIBLE_DEVICES=0
+export WANDB_DISABLED="true"
+export TOKENIZERS_PARALLELISM="false"
 
-Distil-Whisper is supported in Hugging Face 🤗 Transformers from version 4.35 onwards. To run the model, first 
-install the latest version of the Transformers library. For this example, we'll also install 🤗 Datasets to load a toy 
-audio dataset from the Hugging Face Hub:
+#DATASET_TYPE="tiny"
+#DATASET_TYPE="small"
+DATASET_TYPE="medium"
+#DATASET_TYPE="large"
+#DATASET_TYPE="all"
+
+TEACHER_MODEL="openai/whisper-large-v3"
+HF_ORG="asahi417"
+HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
+HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
+```
+
+## 1. Pseudo-Labelling
+
+The python script [`run_pseudo_labelling.py`](run_pseudo_labelling.py) is a flexible inference script that can be used
+to generate pseudo-labels under a range of settings, including using both greedy and beam-search.
 
 ```bash
-pip install --upgrade pip
-pip install --upgrade transformers accelerate datasets[audio]
+accelerate launch run_pseudo_labelling.py \
+  --model_name_or_path "${TEACHER_MODEL}" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_split_name "train" \
+  --text_column_name "transcription" \
+  --id_column_name "name" \
+  --per_device_eval_batch_size 50 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 8 \
+  --preprocessing_num_workers 8 \
+  --logging_steps 100 \
+  --max_label_length 128 \
+  --language "ja" \
+  --task "transcribe" \
+  --return_timestamps \
+  --attn_type "flash_attn" \
+  --generation_num_beams 1 \
+  --decode_token_ids False \
+  --output_dir "${HF_DATASET_ALIAS}" \
+  --wandb_project "wandb.${HF_DATASET_ALIAS}" \
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --push_to_hub
+rm -rf "${HF_DATASET_ALIAS}"
 ```
 
-### Short-Form Transcription
 
-Short-form transcription is the process of transcribing audio samples that are less than 30-seconds long, which is the 
-maximum receptive field of the Whisper models. This means the entire audio clip can be processed in one go without the 
-need for chunking.
+## 2. Initialisation
 
-First, we load Distil-Whisper via the convenient [`AutoModelForSpeechSeq2Seq`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForSpeechSeq2Seq) and [`AutoProcessor`](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoProcessor) classes.
+The script [`create_student_model.py`](create_student_model.py) can be used to initialise a small student model
+from a large teacher model. When initialising a student model with fewer layers than the teacher model, the student is 
+initialised by copying maximally spaced layers from the teacher, as per the [DistilBart](https://arxiv.org/abs/2010.13002)
+recommendations.
 
-We load the model in `float16` precision and make sure that loading time takes as little time as possible by passing `low_cpu_mem_usage=True`.
-In addition, we want to make sure that the model is loaded in [`safetensors`](https://github.com/huggingface/safetensors) format by passing `use_safetensors=True`:
+First, we need to create a model repository on the Hugging Face Hub. This repository will contain all the required files 
+to reproduce the training run, alongside model weights, training logs and a README.md card. You can either create a model 
+repository directly on the Hugging Face Hub using the link: https://huggingface.co/new. Or, via the CLI, as we'll show here.
 
-```python
-import torch
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+Let's pick a name for our distilled model: `distil-whisper-large-v2-hi`. We can run the following command to create a repository under this name:
 
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-model_id = "distil-whisper/distil-large-v2"
-
-model = AutoModelForSpeechSeq2Seq.from_pretrained(
-    model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-)
-model.to(device)
-
-processor = AutoProcessor.from_pretrained(model_id)
+```bash
+huggingface-cli repo create distil-whisper-large-v2-hi
 ```
 
-The model and processor can then be passed to the [`pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines#transformers.AutomaticSpeechRecognitionPipeline).
-Note that if you would like to have more control over the generation process, you can directly make use of `model.generate(...)` as shown [here](https://huggingface.co/docs/transformers/v4.34.1/en/model_doc/whisper#transformers.WhisperForConditionalGeneration.forward.example).
+We can now see the model on the Hub, e.g. under https://huggingface.co/sanchit-gandhi/distil-whisper-large-v2-hi
 
-```python
-pipe = pipeline(
-    "automatic-speech-recognition",
-    model=model,
-    tokenizer=processor.tokenizer,
-    feature_extractor=processor.feature_extractor,
-    max_new_tokens=128,
-    torch_dtype=torch_dtype,
-    device=device,
-)
+Let's clone the repository so that we can place our training script and model weights inside:
+
+```bash
+git lfs install
+git clone https://huggingface.co/sanchit-gandhi/distil-whisper-large-v2-hi
 ```
 
-Next, we load an example short-form audio from the LibriSpeech corpus:
+Be sure to change the repo address to `https://huggingface.co/<your-user-name>/<your-repo-name>`
 
-```python
-from datasets import load_dataset
+We can now copy the relevant training scrips to the repository:
+```bash
+cd distil-whisper-large-v2-hi
 
-dataset = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-sample = dataset[0]["audio"]
+cp ../distil-whisper/training/create_student_model.py .
+cp ../distil-whisper/training/run_distillation.py .
 ```
 
-Finally, we can call the pipeline to transcribe the audio:
+The following command demonstrates how to initialise a student model from the Whisper [large-v2](https://huggingface.co/openai/whisper-large-v2) 
+checkpoint, with all 32 encoder layer and 2 decoder layers. The 2 student decoder layers are copied from teacher layers 
+1 and 32 respectively, as the maximally spaced layers:
 
-```python
-result = pipe(sample)
-print(result["text"])
+```bash
+#!/usr/bin/env bash
+
+python create_student_model.py \
+  --teacher_checkpoint "openai/whisper-large-v2" \
+  --encoder_layers 32 \
+  --decoder_layers 2 \
+  --save_dir "./distil-large-v2-init"
 ```
 
-To transcribe a local audio file, simply pass the path to your audio file when you call the pipeline:
+The initialised model will be saved to the sub-directory `distil-large-v2-init` in our model repository. 
 
-```python
-result = pipe("audio.mp3")
-print(result["text"])
-```
+## 3. Training
 
-For more information on how to customize the automatic speech recognition pipeline, please refer to the ASR pipeline [docs](https://huggingface.co/docs/transformers/v4.34.1/en/main_classes/pipelines#transformers.AutomaticSpeechRecognitionPipeline).
-We also provide an end-to-end [Google Colab](https://colab.research.google.com/github/sanchit-gandhi/notebooks/blob/main/Distil_Whisper_Benchmark.ipynb) that benchmarks Whisper against Distil-Whisper.
+The script [`run_distillation.py`](run_distillation.py) is an end-to-end script for loading multiple
+datasets, a student model, a teacher model, and performing teacher-student distillation. It uses the loss formulation
+from the [Distil-Whisper paper](https://arxiv.org/abs/2311.00430), which is a weighted sum of the cross-entropy and 
+KL-divergence loss terms.
 
-### Long-Form Transcription
+The following command takes the Common Voice dataset that was pseudo-labelled in the first stage and trains the 
+2-layer decoder model intialised in the previous step. We pass the local path to the pseudo-labelled Common Voice dataset
+(`../common_voice_13_0_hi_pseudo_labelled`), which you can change to the path where your local pseudo-labelled dataset is 
+saved.
 
-Distil-Whisper uses a chunked algorithm to transcribe long-form audio files longer than 30-seconds. In practice, this 
-chunked long-form algorithm is 9x faster than the sequential algorithm proposed by OpenAI in the Whisper paper 
-(see Table 7 of the [Distil-Whisper paper](https://arxiv.org/abs/2311.00430)).
+In this example, we will combine the train and validation splits to give our training set, and evaluate on the test split 
+only. This is purely to demonstrate how to combine multiple pseudo-labelled datasets for training, rather than recommended 
+advice for defining train/validation splits. We advise that you train on the train splits of your dataset, evaluate and 
+tune hyper-parameters on the validation split, and only test the final checkpoint on the test split. Note how multiple 
+training datasets and splits can be loaded by separating the dataset arguments by `+` symbols. Thus, the script generalises 
+to any number of training datasets.
 
-We can load the model and processor as before:
+```bash
+#!/usr/bin/env bash
 
-```python
-import torch
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-model_id = "distil-whisper/distil-large-v2"
-
-model = AutoModelForSpeechSeq2Seq.from_pretrained(
-    model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-)
-model.to(device)
-
-processor = AutoProcessor.from_pretrained(model_id)
-```
-
-To enable chunking, pass the `chunk_length_s` parameter to the `pipeline`. For Distil-Whisper, a chunk length of 15-seconds
-is optimal. To activate batching, pass the argument `batch_size`:
-
-```python
-pipe = pipeline(
-    "automatic-speech-recognition",
-    model=model,
-    tokenizer=processor.tokenizer,
-    feature_extractor=processor.feature_extractor,
-    max_new_tokens=128,
-    chunk_length_s=15,
-    batch_size=16,
-    torch_dtype=torch_dtype,
-    device=device,
-)
-```
-
-The argument `max_new_tokens` controls the maximum number of generated tokens *per-chunk*. In the typical speech setting,
-we have no more than 3 words spoken per-second. Therefore, for a 15-second input, we have at most 45 words (approx 60 tokens).
-We set the maximum number of generated tokens per-chunk to 128 to truncate any possible hallucinations that occur at the 
-end of the segment. These tokens get removed at the chunk borders using the long-form chunking transcription algorithm, 
-so it is more efficient to truncate them directly during generation to avoid redundant generation steps in the decoder.
-
-Now, let's load a long-form audio sample. Here, we use an example of concatenated samples from the LibriSpeech corpus:
-
-```python
-from datasets import load_dataset
-
-dataset = load_dataset("distil-whisper/librispeech_long", "clean", split="validation")
-sample = dataset[0]["audio"]
-```
-
-Finally, we can call the pipeline to transcribe the audio:
-
-```python
-result = pipe(sample)
-print(result["text"])
-```
-
-<!---
-**Tip:** The pipeline can also be used to transcribe an audio file from a remote URL, for example:
-
-```python
-result = pipe("https://huggingface.co/datasets/sanchit-gandhi/librispeech_long/resolve/main/audio.wav")
-```
---->
-
-For more information on how to customize the automatic speech recognition pipeline, please refer to the ASR pipeline [docs](https://huggingface.co/docs/transformers/v4.34.1/en/main_classes/pipelines#transformers.AutomaticSpeechRecognitionPipeline).
-
-### Speculative Decoding
-
-Distil-Whisper can be used as an assistant model to Whisper for [speculative decoding](https://huggingface.co/blog/whisper-speculative-decoding). 
-Speculative decoding mathematically ensures the exact same outputs as Whisper are obtained while being 2 times faster. 
-This makes it the perfect drop-in replacement for existing Whisper pipelines, since the same outputs are guaranteed.
-
-For speculative decoding, we need to load both the teacher: [`openai/whisper-large-v2`](https://huggingface.co/openai/whisper-large-v2).
-As well as the assistant (*a.k.a* student) [`distil-whisper/distil-large-v2`](https://huggingface.co/distil-whisper/distil-large-v2).
-
-Let's start by loading the teacher model and processor. We do this in much the same way we loaded the Distil-Whisper 
-model in the previous examples:
-
-```python
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
-import torch
-
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-model_id = "openai/whisper-large-v2"
-
-model = AutoModelForSpeechSeq2Seq.from_pretrained(
-    model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-)
-model.to(device)
-
-processor = AutoProcessor.from_pretrained(model_id)
-```
-
-Now let's load the assistant. Since Distil-Whisper shares exactly same encoder as the teacher model, we only need 
-to load the 2-layer decoder as a "Decoder-only" model:
-
-```python
-from transformers import AutoModelForCausalLM
-assistant_model_id = "distil-whisper/distil-large-v2"
-
-assistant_model = AutoModelForCausalLM.from_pretrained(
-    assistant_model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-)
-assistant_model.to(device)
-```
-
-The assistant model shares the same processor as the teacher, so there's no need to load a student processor.
-
-We can now pass the assistant model to the pipeline to be used for speculative decoding. We pass it as a `generate_kwarg`
-with the key [`"assistant_model"`](https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationMixin.generate.assistant_model) 
-so that speculative decoding is enabled:
-
-```python
-pipe = pipeline(
-    "automatic-speech-recognition",
-    model=model,
-    tokenizer=processor.tokenizer,
-    feature_extractor=processor.feature_extractor,
-    max_new_tokens=128,
-    generate_kwargs={"assistant_model": assistant_model},
-    torch_dtype=torch_dtype,
-    device=device,
-)
-```
-
-As before, we can pass any sample to the pipeline to be transcribed:
-
-```python
-from datasets import load_dataset
-
-dataset = load_dataset("hf-internal-testing/librispeech_asr_dummy", "clean", split="validation")
-sample = dataset[0]["audio"]
-
-result = pipe(sample)
-print(result["text"])
-```
-
-**Note:** speculative decoding should be on average 2x faster than using "only" Whisper large-v2 at a mere 8% increase 
-in VRAM memory usage while mathematically ensuring the same results. This makes it the perfect replacement for Whisper large-v2
-in existing speech recognition pipelines.
-
-For more details on speculative decoding, refer to the following resources:
-* [Speculative decoding for 2x faster Whisper inference](https://huggingface.co/blog/whisper-speculative-decoding) blog post by Sanchit Gandhi
-* [Assisted Generation: a new direction toward low-latency text generation](https://huggingface.co/blog/assisted-generation) blog post by Joao Gante
-* [Fast Inference from Transformers via Speculative Decoding](https://arxiv.org/abs/2211.17192) paper by Leviathan et. al.
-
-### Additional Speed & Memory Improvements
-
-You can apply additional speed and memory improvements to Distil-Whisper which we cover in the following.
-
-#### Flash Attention
-
-We recommend using [Flash Attention 2](https://huggingface.co/docs/transformers/main/en/perf_infer_gpu_one#flashattention-2) if your GPU allows for it.
-To do so, you first need to install [Flash Attention](https://github.com/Dao-AILab/flash-attention):
+accelerate launch run_distillation.py \
+  --model_name_or_path "./distil-large-v2-init" \
+  --teacher_model_name_or_path "openai/whisper-large-v2" \
+  --train_dataset_name "../common_voice_13_0_hi_pseudo_labelled+../common_voice_13_0_hi_pseudo_labelled" \
+  --train_dataset_config_name "hi+hi" \
+  --train_split_name "train+validation" \
+  --text_column_name "sentence+sentence" \
+  --train_dataset_samples "10+5" \
+  --eval_dataset_name "../common_voice_13_0_hi_pseudo_labelled" \
+  --eval_dataset_config_name "hi" \
+  --eval_split_name "test" \
+  --eval_text_column_name "sentence" \
+  --eval_steps 1000 \
+  --save_steps 1000 \
+  --warmup_steps 50 \
+  --learning_rate 0.0001 \
+  --lr_scheduler_type "constant_with_warmup" \
+  --logging_steps 25 \
+  --save_total_limit 1 \
+  --max_steps 5000 \
+  --wer_threshold 10 \
+  --per_device_train_batch_size 64 \
+  --per_device_eval_batch_size 64 \
+  --dataloader_num_workers 16 \
+  --preprocessing_num_workers 16 \
+  --ddp_timeout 7200 \
+  --dtype "bfloat16" \
+  --output_dir "./" \
+  --do_train \
+  --do_eval \
+  --gradient_checkpointing \
+  --overwrite_output_dir \
+  --predict_with_generate \
+  --freeze_encoder \
+  --streaming False \
+  --push_to_hub
 
 ```
-pip install flash-attn --no-build-isolation
+
+The above training script will take approximately 1 hour to complete on an 80 GB A100 GPU and yield a final WER of 31%.
+This is reasonable for 1000 training steps and just 15 hours of un-filtered training data, but 12% higher than the error rate of the 
+pre-trained model. As mentioned above, using upwards of 1000 hours of data and training for 10k steps will likely yield
+more competitive performance. For the [Distil-Whisper paper](https://arxiv.org/abs/2311.00430), we trained on 21k hours
+of audio data for 80k steps. We found that upwards of 13k hours of audio data was required to reach convergence on English 
+ASR (see Section 9.2 of the [paper](https://arxiv.org/abs/2311.00430)), so the more data you have, the better!
+
+Scaling to multiple GPUs using [distributed data parallelism (DDP)](https://pytorch.org/tutorials/beginner/ddp_series_theory.html)
+is trivial: simply run `accelerate config` and select the multi-GPU option, specifying the IDs of the GPUs you wish to use. The 
+above script can then be run using DDP with no code changes. 
+
+Training logs will be reported to TensorBoard and WandB, provided the relevant packages are available. An example of a 
+saved checkpoint pushed to the Hugging Face Hub can be found here: [sanchit-gandhi/distil-whisper-large-v2-hi](https://huggingface.co/sanchit-gandhi/distil-whisper-large-v2-hi).
+
+There are a few noteworthy arguments that can be configured to give optimal training performance:
+1. `train_dataset_samples`: defines the number of training samples in each dataset. Used to calculate the sampling probabilities in the dataloader. A good starting point is setting the samples to the number of hours of audio data in each split. A more refined strategy is setting it to the number of training samples in each split, however this might require downloading the dataset offline to compute these statistics.
+2. `wer_threshold`: sets the WER threshold between the normalised pseudo-labels and normalised ground truth labels. Any samples with WER > `wer_threshold` are discarded from the training data. This is beneficial to avoid training the student model on pseudo-labels where Whisper hallucinated or got the predictions grossly wrong.
+3. `freeze_encoder`: whether to freeze the entire encoder of the student model during training. Beneficial when the student encoder is copied exactly from the teacher encoder. In this case, the encoder hidden-states from the teacher model are re-used for the student model. Stopping the gradient computation through the encoder and sharing the encoder hidden-states provides a significant memory saving, and can enable up to 2x batch sizes. 
+4. `dtype`: data type (dtype) in which the model computation should be performed. Note that this only controls the dtype of the computations (forward and backward pass), and not the dtype of the parameters or optimiser states.
+5. `lr_scheduler_stype`: defines the learning rate schedule, one of `constant_with_warmup` or `linear`. When experimenting with a training set-up or training for very few steps (< 5k), using `constant_with_warmup` is typically beneficial, since the learning rate remains high over the short training run. When performing long training runs (> 5k), using a `linear` schedule generally results in superior downstream performance of the distilled model.
+6. `streaming`: whether or not to use Datasets' streaming mode. Recommended for large datasets, where the audio data can be streamed from the Hugging Face Hub with no disk space requirements.
+7. `timestamp_probability`: the per-sample probability for retaining timestamp tokens in the labels (should they contain them). Retaining some portion of timestamp tokens in the training data is required to ensure the distilled model can predict timestamps at inference time. In our experiments, we found that training on timestamps with high-probability hurts the distilled model's transcription performance. Thus, we recommend setting this to a value below 0.5. Typically, a value of 0.2 works well, giving good transcription and timestamp performance.
+8. `condition_on_prev_probability`: the per-sample probability for conditioning on previous labels. Conditioning on previous tokens is required to ensure the distilled model can be used with the "sequential" long-form transcription algorithm at inference time. We did not experiment with this parameter, but found a value of 0.1 to provide adequate performance. OpenAI pre-trained Whisper on with a 50% probability for conditioning on previous tokens. Thus, you might wish to try higher values.
+
+## 4. Evaluation
+
+There are two types of evaluation performed in Distil-Whisper:
+1. Short form: evaluation on audio samples less than 30s in duration. Examples include typical ASR test sets, such as the LibriSpeech validation set.
+2. Long form: evaluation on audio samples longer than 30s in duration. Examples include entire TED talks or earnings calls.
+
+Both forms of evaluation are performed using the *word-error rate (WER)* metric.
+
+### Short Form
+
+The script [`run_short_form_eval.py`](run_short_form_eval.py) can be used to evaluate a trained student model over 
+multiple validation sets. The following example demonstrates how to evaluate the student model trained in the previous 
+step on the Common Voice `test` set and also the FLEURS `test` set. Again, it leverages streaming mode to 
+bypass the need to download the data offline:
+
+```bash
+#!/usr/bin/env bash
+
+accelerate launch run_short_form_eval.py \
+  --model_name_or_path "./" \
+  --dataset_name "../common_voice_13_0_hi_pseudo_labelled+google/fleurs" \
+  --dataset_config_name "hi+hi_in" \
+  --dataset_split_name "test+test" \
+  --text_column_name "sentence+transcription" \
+  --output_dir "./" \
+  --per_device_eval_batch_size 64 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 16 \
+  --report_to "wandb" \
+  --generation_max_length 128 \
+  --language "hi" \
+  --attn_type "flash_attn" \
+  --streaming
 ```
 
-You can then pass `use_flash_attention_2=True` to `from_pretrained` to enable Flash Attention 2:
+It is particularly important to evaluate the final model on data that is *out-of-distribution (OOD)* with the training data. 
+Evaluating on OOD data provides insight as to how well the distilled model is likely to generalise to different audio 
+distributions at inference time. In this example, Common Voice is *in-distribution (ID)*, since it is taken from the same 
+distribution as the Common Voice training set, whereas FLEURS is OOD, since it is not used as part of the training set.
 
-```diff
-- model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True)
-+ model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True, use_flash_attention_2=True)
+### Long Form
+
+Long form evaluation runs on the premise that a single long audio file can be *chunked* into smaller segments and 
+inferred in parallel. The resulting transcriptions are then joined at the boundaries to give the final text prediction. 
+A small overlap (or *stride*) is used between adjacent segments to ensure a continuous transcription across chunks.
+
+This style of chunked inference is performed using the [`pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines)
+class, which provides a wrapper around the [`.generate`](https://huggingface.co/docs/transformers/model_doc/whisper#transformers.WhisperForConditionalGeneration.generate) 
+function for long-form inference.
+
+The script [`run_long_form_eval.py`](run_long_form_eval.py) can be used to evaluate the trained student model on an 
+arbitrary number of long-form evaluation sets. Since we don't have a long-form validation set for Hindi to hand, we'll
+evaluate the teacher model on the TED-LIUM validation set in this example:
+
+```bash
+#!/usr/bin/env bash
+
+python run_long_form_eval.py \
+  --model_name_or_path "openai/whisper-large-v2" \
+  --dataset_name "distil-whisper/tedlium-long-form" \
+  --dataset_config_name "all" \
+  --dataset_split_name "validation" \
+  --text_column_name "text" \
+  --output_dir "./" \
+  --per_device_eval_batch_size 64 \
+  --chunk_length_s 30 \
+  --language "en" \
+  --return_timestamps \
+  --dtype "bfloat16" \
+  --report_to "wandb" \
+  --streaming
+
 ```
 
-#### Torch Scale-Product-Attention (SDPA)
-
-If your GPU does not support Flash Attention, we recommend making use of [BetterTransformers](https://huggingface.co/docs/transformers/main/en/perf_infer_gpu_one#bettertransformer).
-To do so, you first need to install optimum:
-
-```
-pip install --upgrade optimum
-```
-
-And then convert your model to a "BetterTransformer" model before using it:
-
-```diff
-model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True)
-+ model = model.to_bettertransformer()
-```
-
-### Exporting to Other Libraries
-
-Distil-Whisper has support in the following libraries with the original "sequential" long-form transcription algorithm. 
-Click the links in the table to see the relevant code-snippets for each:
-
-| Library         | distil-small.en                                                                                 | distil-medium.en                                                                                 | distil-large-v2                                                                                 |
-|-----------------|-------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| OpenAI Whisper  | [link](https://huggingface.co/distil-whisper/distil-small.en#running-whisper-in-openai-whisper) | [link](https://huggingface.co/distil-whisper/distil-medium.en#running-whisper-in-openai-whisper) | [link](https://huggingface.co/distil-whisper/distil-large-v2#running-whisper-in-openai-whisper) |
-| Whisper cpp     | [link](https://huggingface.co/distil-whisper/distil-small.en#whispercpp)                        | [link](https://huggingface.co/distil-whisper/distil-medium.en#whispercpp)                        | [link](https://huggingface.co/distil-whisper/distil-large-v2#whispercpp)                        |
-| Transformers js | [link](https://huggingface.co/distil-whisper/distil-small.en#transformersjs)                    | [link](https://huggingface.co/distil-whisper/distil-medium.en#transformersjs)                    | [link](https://huggingface.co/distil-whisper/distil-large-v2#transformersjs)                    |
-| Candle (Rust)   | [link](https://huggingface.co/distil-whisper/distil-small.en#candle)                            | [link](https://huggingface.co/distil-whisper/distil-medium.en#candle)                            | [link](https://huggingface.co/distil-whisper/distil-large-v2#candle)                            |
-
-Updates will be posted here with the integration of the "chunked" long-form transcription algorithm into the respective 
-libraries.
-
-For the 🤗 Transformers code-examples, refer to the sections [Short-Form](#short-form-transcription) and [Long-Form](#long-form-transcription) Transcription.
-
-## 2. Why use Distil-Whisper? ⁉️
-
-Distil-Whisper is designed to be a drop-in replacement for Whisper on English speech recognition. Here are 5 reasons for making the
-switch to Distil-Whisper:
-
-1. **Faster inference:** 6 times faster inference speed, while performing to within 1% WER of Whisper on out-of-distribution audio:
-
-<p align="center">
-  <img src="https://huggingface.co/datasets/distil-whisper/figures/resolve/main/main_table.png?raw=true" width="600"/>
-</p>
-
-2. **Robustness to noise:** demonstrated by strong WER performance at low signal-to-noise ratios:
-
-<p align="center">
-  <img src="https://huggingface.co/datasets/distil-whisper/figures/resolve/main/noise.png?raw=true" width="600"/>
-</p>
-
-3. **Robustness to hallucinations:** quantified by 1.3 times fewer repeated 5-gram word duplicates (5-Dup.) and 2.1% lower insertion error rate (IER) than Whisper:
-
-<p align="center">
-  <img src="https://huggingface.co/datasets/distil-whisper/figures/resolve/main/hallucination.png?raw=true" width="600"/>
-</p>
-
-4. **Designed for speculative decoding:** Distil-Whisper can be used as an assistant model to Whisper, giving 2 times faster inference speed while mathematically ensuring the same outputs as the Whisper model.
-5. **Permissive license:** Distil-Whisper is [MIT licensed](./LICENSE), meaning it can be used for commercial applications.
-
-## 3. Approach ✍️
-
-To distill Whisper, we copy the entire encoder module and freeze it during training. We copy only two decoder layers, 
-which are initialised from the first and last decoder layers from Whisper. All other decoder layers from Whisper
-are discarded:
-
-<p align="center">
-  <img src="https://huggingface.co/datasets/distil-whisper/figures/resolve/main/architecture.png?raw=true" width="600"/>
-</p>
-
-Distil-Whisper is trained on a *knowledge distillation* objective. Specifically, it is trained to minimise the KL divergence
-between the distilled model and the Whisper model, as well as the cross-entropy loss on pseudo-labelled audio data.
-
-We train Distil-Whisper on a total of 22k hours of pseudo-labelled audio data, spanning 10 domains with over 18k speakers:
-
-<p align="center">
-  <img src="https://huggingface.co/datasets/distil-whisper/figures/resolve/main/datasets.png?raw=true" width="600"/>
-</p>
-
-This diverse audio dataset is paramount to ensuring robustness of Distil-Whisper to different datasets and domains. 
-
-In addition, we use a WER filter to discard pseudo-labels where Whisper mis-transcribes or hallucinates. This greatly 
-improves WER performance of the downstream distilled model.
-
-For full details on the distillation set-up and evaluation results, refer to the [Distil-Whisper paper](https://arxiv.org/abs/2311.00430).
-
-## 4. Training Code
-
-Training code to reproduce Distil-Whisper can be found in the directory [training](training). This code has been adapted 
-be general enough to distill Whisper for multilingual speech recognition, facilitating anyone in the community to distill 
-Whisper on their choice of language.
-
-## 5. Acknowledgements
-* OpenAI for the Whisper [model](https://huggingface.co/openai/whisper-large-v2) and [original codebase](https://github.com/openai/whisper)
-* Hugging Face 🤗 [Transformers](https://github.com/huggingface/transformers) for the model integration
-* Google's [TPU Research Cloud (TRC)](https://sites.research.google/trc/about/) program for Cloud TPU v4s
-
-## 6. Citation
-
-If you use this model, please consider citing the Distil-Whisper paper:
-```
-@misc{gandhi2023distilwhisper,
-      title={Distil-Whisper: Robust Knowledge Distillation via Large-Scale Pseudo Labelling}, 
-      author={Sanchit Gandhi and Patrick von Platen and Alexander M. Rush},
-      year={2023},
-      eprint={2311.00430},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
-```
-
-And also the Whisper paper:
-```
-@misc{radford2022robust,
-      title={Robust Speech Recognition via Large-Scale Weak Supervision}, 
-      author={Alec Radford and Jong Wook Kim and Tao Xu and Greg Brockman and Christine McLeavey and Ilya Sutskever},
-      year={2022},
-      eprint={2212.04356},
-      archivePrefix={arXiv},
-      primaryClass={eess.AS}
-}
-```
+The argument `chunk_length_s` controls the length of the chunked audio samples. It should be set to match the typical
+length of audio the student model was trained on. If unsure about what value of `chunk_length_s` is optimal for your case,
+it is recommended to run a *sweep* over all possible values. A template script for running a [WandB sweep](https://docs.wandb.ai/guides/sweeps) 
+can be found under [`run_chunk_length_s_sweep.yaml`](flax/long_form_transcription_scripts/run_chunk_length_s_sweep.yaml).
