@@ -38,7 +38,6 @@ from accelerate import Accelerator, InitProcessGroupKwargs
 from accelerate.logging import get_logger
 from datasets import (
     DatasetDict,
-    IterableDatasetDict,
     load_dataset,
 )
 from huggingface_hub import HfFolder, Repository, create_repo, get_full_repo_name
@@ -147,6 +146,10 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
+    dataset_name: str = field(
+        default=None,
+        metadata={"help": "The name of the dataset to use (via the datasets library)."},
+    )
     dataset_config_name: Optional[str] = field(
         default=None,
         metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
@@ -451,9 +454,9 @@ def main():
     data_splits = data_args.dataset_split_name.split("+")
     for split in data_splits:
         raw_datasets[split] = load_dataset(
-            f"{os.getcwd()}/reazon_custom_loader.py",
+            data_args.dataset_name,
             data_args.dataset_config_name,
-            split="train",
+            split=split,
             trust_remote_code=True,
             cache_dir=data_args.dataset_cache_dir,
             token=token,

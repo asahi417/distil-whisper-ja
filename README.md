@@ -84,47 +84,36 @@ recommendations.
 First, we need to create a model repository on the Hugging Face Hub. This repository will contain all the required files 
 to reproduce the training run, alongside model weights, training logs and a README.md card. You can either create a model 
 repository directly on the Hugging Face Hub using the link: https://huggingface.co/new. Or, via the CLI, as we'll show here.
-
-Let's pick a name for our distilled model: `distil-whisper-large-v2-hi`. We can run the following command to create a repository under this name:
-
 ```bash
-huggingface-cli repo create distil-whisper-large-v2-hi
+huggingface-cli repo create "${HF_MODEL_ALIAS}"
 ```
-
-We can now see the model on the Hub, e.g. under https://huggingface.co/sanchit-gandhi/distil-whisper-large-v2-hi
 
 Let's clone the repository so that we can place our training script and model weights inside:
 
 ```bash
 git lfs install
-git clone https://huggingface.co/sanchit-gandhi/distil-whisper-large-v2-hi
+git clone "https://huggingface.co/${HF_ORG}/${HF_MODEL_ALIAS}"
 ```
-
-Be sure to change the repo address to `https://huggingface.co/<your-user-name>/<your-repo-name>`
 
 We can now copy the relevant training scrips to the repository:
 ```bash
-cd distil-whisper-large-v2-hi
-
-cp ../distil-whisper/training/create_student_model.py .
-cp ../distil-whisper/training/run_distillation.py .
+cp create_student_model.py "${HF_MODEL_ALIAS}"
+cp run_distillation.py "${HF_MODEL_ALIAS}"
+cd "${HF_MODEL_ALIAS}" || exit
 ```
 
-The following command demonstrates how to initialise a student model from the Whisper [large-v2](https://huggingface.co/openai/whisper-large-v2) 
-checkpoint, with all 32 encoder layer and 2 decoder layers. The 2 student decoder layers are copied from teacher layers 
+The following command demonstrates how to initialise a student model from the Whisper checkpoint, with all 32 encoder layer and 2 decoder layers. The 2 student decoder layers are copied from teacher layers 
 1 and 32 respectively, as the maximally spaced layers:
 
 ```bash
-#!/usr/bin/env bash
-
 python create_student_model.py \
-  --teacher_checkpoint "openai/whisper-large-v2" \
+  --teacher_checkpoint "${TEACHER_MODEL}" \
   --encoder_layers 32 \
   --decoder_layers 2 \
-  --save_dir "./distil-large-v2-init"
+  --save_dir "./${HF_MODEL_ALIAS}-init"
 ```
 
-The initialised model will be saved to the sub-directory `distil-large-v2-init` in our model repository. 
+The initialised model will be saved to the sub-directory in our model repository. 
 
 ## 3. Training
 

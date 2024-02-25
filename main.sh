@@ -2,9 +2,9 @@ export CUDA_VISIBLE_DEVICES=0
 export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
 
-DATASET_TYPE="tiny"
+#DATASET_TYPE="tiny"
 #DATASET_TYPE="small"
-#DATASET_TYPE="medium"
+DATASET_TYPE="medium"
 #DATASET_TYPE="large"
 #DATASET_TYPE="all"
 TEACHER_MODEL="openai/whisper-large-v3"
@@ -18,6 +18,7 @@ HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 
 accelerate launch run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
+  --dataset_name "${PWD}/reazon_custom_loader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
@@ -60,4 +61,33 @@ python create_student_model.py \
 ##########################
 # Training Student Model #
 ##########################
-
+accelerate launch run_distillation.py \
+  --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
+  --teacher_model_name_or_path "${TEACHER_MODEL}" \
+  --train_dataset_name "${PWD}/reazon_custom_loader.py" \
+  --train_dataset_config_name "${DATASET_TYPE}" \
+  --language "ja" \
+  --task "transcribe" \
+  --train_split_name "train" \
+  --text_column_name "transcription" \
+  --save_steps 1000 \
+  --warmup_steps 50 \
+  --learning_rate 0.0001 \
+  --lr_scheduler_type "constant_with_warmup" \
+  --logging_steps 25 \
+  --save_total_limit 1 \
+  --max_steps 5000 \
+  --wer_threshold 10 \
+  --per_device_train_batch_size 64 \
+  --per_device_eval_batch_size 64 \
+  --dataloader_num_workers 16 \
+  --preprocessing_num_workers 16 \
+  --ddp_timeout 7200 \
+  --dtype "bfloat16" \
+  --output_dir "./" \
+  --wandb_project "wandb.${HF_MODEL_ALIAS}" \
+  --gradient_checkpointing \
+  --overwrite_output_dir \
+  --predict_with_generate \
+  --freeze_encoder \
+  --push_to_hub
