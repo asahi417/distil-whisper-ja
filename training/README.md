@@ -1,3 +1,6 @@
+# Japanese Distil-Whisper
+This the adaptation of [official distil-whisper code](https://github.com/huggingface/distil-whisper) into Japanese. Following description is copied from the original repository.
+
 ## Training Distil-Whisper
 Reproducing the Distil-Whisper project requires four stages to be completed in successive order:
 
