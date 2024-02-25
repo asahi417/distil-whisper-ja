@@ -50,9 +50,18 @@ if os.path.exists("stats.json"):
 else:
     stats = {}
 
-stat_tiny = dataset_statistics(data_type="tiny")
-stat_small = dataset_statistics(data_type="small")
-stat_medium = dataset_statistics(data_type="medium")
+if "tiny" in stats:
+    stat_tiny = stats["tiny"]
+else:
+    stat_tiny = dataset_statistics(data_type="tiny")
+if "small" in stats:
+    stat_small = stats["small"]
+else:
+    stat_small = dataset_statistics(data_type="small")
+if "medium" in stats:
+    stat_medium = stats["medium"]
+else:
+    stat_medium = dataset_statistics(data_type="medium")
 # stat_large = dataset_statistics(data_type="large")
 # stat_all = dataset_statistics(data_type="all")
 with open("stats.json", "w") as f:
@@ -62,7 +71,7 @@ with open("stats.json", "w") as f:
         "medium": stat_medium,
         # "large": stat_large,
         # "all": stat_all,
-    })
+    }, f)
 
 
 
