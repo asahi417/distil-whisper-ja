@@ -22,7 +22,6 @@ import csv
 import logging
 import os
 import shutil
-import string
 import sys
 import time
 from dataclasses import dataclass, field
@@ -148,10 +147,6 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
 
-    dataset_name: str = field(
-        default=None,
-        metadata={"help": "The name of the dataset to use (via the datasets library)."},
-    )
     dataset_config_name: Optional[str] = field(
         default=None,
         metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
@@ -215,10 +210,6 @@ class DataTrainingArguments:
     wandb_project: str = field(
         default="distil-whisper",
         metadata={"help": "The name of the wandb project."},
-    )
-    streaming: bool = field(
-        default=False,
-        metadata={"help": "Whether to use dataset's streaming mode to load and pre-process the data."},
     )
     max_samples_per_split: Optional[int] = field(
         default=None,
@@ -454,35 +445,25 @@ def main():
     logger.info("Training/evaluation parameters %s", training_args)
 
     # 3. Load dataset
-    raw_datasets = IterableDatasetDict() if data_args.streaming else DatasetDict()
+    raw_datasets = DatasetDict()
     token = model_args.token if model_args.token is not None else HfFolder().get_token()
 
     data_splits = data_args.dataset_split_name.split("+")
     for split in data_splits:
-        if data_args.streaming:
-            raw_datasets[split] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=split,
-                cache_dir=data_args.dataset_cache_dir,
-                token=token,
-                streaming=True,
-            )
-        else:
-            raw_datasets[split] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=split,
-                cache_dir=data_args.dataset_cache_dir,
-                token=token,
-                streaming=False,
-                num_proc=data_args.preprocessing_num_workers,
-            )
+        raw_datasets[split] = load_dataset(
+            f"{os.getcwd()}/reazon_custom_loader.py",
+            data_args.dataset_config_name,
+            split="train",
+            trust_remote_code=True,
+            cache_dir=data_args.dataset_cache_dir,
+            token=token,
+            num_proc=data_args.preprocessing_num_workers,
+        )
 
     if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
         raise ValueError(
             f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
-            f" '{data_args.dataset_name}'. Make sure to set `--audio_column_name` to"
+            f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
             " the correct audio column - one of"
             f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
         )
@@ -490,7 +471,7 @@ def main():
     if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
         raise ValueError(
             f"--text_column_name {data_args.text_column_name} not found in dataset"
-            f" '{data_args.dataset_name}'. Make sure to set `--text_column_name` to the"
+            f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
             " correct text column - one of"
             f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
         )
@@ -585,11 +566,7 @@ def main():
 
     if data_args.max_samples_per_split is not None:
         for split in data_splits:
-            raw_datasets[split] = (
-                raw_datasets[split].take(data_args.max_samples_per_split)
-                if data_args.streaming
-                else raw_datasets[split].select(range(data_args.max_samples_per_split))
-            )
+            raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
 
     def prepare_dataset(batch):
         # process audio
@@ -607,15 +584,12 @@ def main():
         return batch
 
     raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-    if data_args.streaming:
-        vectorized_datasets = raw_datasets.map(prepare_dataset, remove_columns=raw_datasets_features)
-    else:
-        vectorized_datasets = raw_datasets.map(
-            prepare_dataset,
-            remove_columns=raw_datasets_features,
-            num_proc=num_workers,
-            desc="preprocess dataset",
-        )
+    vectorized_datasets = raw_datasets.map(
+        prepare_dataset,
+        remove_columns=raw_datasets_features,
+        num_proc=num_workers,
+        desc="preprocess dataset",
+    )
 
     # for large datasets it is advised to run the preprocessing on a
     # single machine first with `args.preprocessing_only` since there will mostly likely
@@ -626,13 +600,6 @@ def main():
         cache = {k: v.cache_files for k, v in vectorized_datasets.items()}
         logger.info(f"Data preprocessing finished. Files cached at {cache}.")
         return
-
-    if data_args.streaming and dataloader_num_workers > 0:
-        logger.warning(
-            "Using multiple dataloader num workers with streaming mode will result in different shards of "
-            "data being transcribed in parallel. This is not advised if you want to preserve the order of the "
-            "audio-text data."
-        )
 
     # Handle the repository creation
     output_dir = training_args.output_dir
@@ -747,11 +714,7 @@ def main():
         )
 
         eval_loader = accelerator.prepare(eval_loader)
-        if data_args.data_size and data_args.streaming:
-            batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process,
-                           total=int(data_args.data_size/per_device_eval_batch_size) + 1)
-        else:
-            batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process)
+        batches = tqdm(eval_loader, desc=f"Evaluating {split}...", disable=not accelerator.is_local_main_process)
 
         # make the split name pretty for librispeech etc
         split = split.replace(".", "-").split("/")[-1]
@@ -836,8 +799,7 @@ def main():
         # Print metrics
         logger.info(wer_desc)
 
-        if not data_args.streaming:
-            raw_datasets[split] = raw_datasets[split].add_column("whisper_transcript", eval_preds)
+        raw_datasets[split] = raw_datasets[split].add_column("whisper_transcript", eval_preds)
 
     logger.info("***** Running Labelling *****")
     logger.info("  Instantaneous batch size per device =" f" {training_args.per_device_eval_batch_size}")
@@ -854,7 +816,7 @@ def main():
                 commit_message=f"Saving final transcriptions for split {split.replace('.', '-').split('/')[-1]}",
                 blocking=False,
             )
-    if not data_args.streaming and accelerator.is_main_process:
+    if accelerator.is_main_process:
         raw_datasets.save_to_disk(output_dir, num_proc=num_workers)
         if training_args.push_to_hub:
             raw_datasets.push_to_hub(repo_name, config_name=data_args.dataset_config_name)

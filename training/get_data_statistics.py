@@ -18,7 +18,7 @@ def get_cumulative_max_min(
     return cumulative_value + current_value, current_max, current_min
 
 
-def dataset_statistics(data_name: str = "reazon-research/reazonspeech", data_type: str = "tiny"):
+def dataset_statistics(data_type: str = "tiny"):
 
     dataset = load_dataset(
         f"{os.getcwd()}/reazon_custom_loader.py",

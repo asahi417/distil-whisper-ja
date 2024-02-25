@@ -8,8 +8,12 @@ from time import time
 from os.path import expanduser
 
 
-# target = "large"
-target = "tiny"
+# target = "tiny"
+# target = "small"
+# target = "medium"
+target = "large"
+# target = "all"
+
 base_url = "https://reazonspeech.s3.abci.ai/"
 dataset = {
     "tiny": {"tsv": 'v2-tsv/tiny.tsv',   "audio": "v2/{:03x}.tar", "nfiles": 1},
@@ -19,10 +23,7 @@ dataset = {
     "all": {"tsv": 'v2-tsv/all.tsv',    "audio": "v2/{:03x}.tar", "nfiles": 4096}
 }
 
-
-urls = [
-    base_url + dataset[target]["audio"].format(idx) for idx in range(dataset[target]["nfiles"])
-]
+urls = [base_url + dataset[target]["audio"].format(idx) for idx in range(dataset[target]["nfiles"])]
 urls.append(base_url + dataset[target]["tsv"])
 target_dir = f"{expanduser('~')}/.cache/reazon_manual_download/{target}"
 os.makedirs(target_dir, exist_ok=True)
