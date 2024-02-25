@@ -4,11 +4,14 @@
 
 Example:
 ```
+import os
 from datasets import load_dataset
+
 dataset = load_dataset(
-    $"{PWD}/reazon_custom_loader.py",
+    f"{os.getcwd()}/reazon_custom_loader.py",
     "tiny",
-    split="train"
+    split="train",
+    trust_remote_code=True
 )
 ```
 """
@@ -46,7 +49,7 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager):
         data_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{self.config.name}"
-        audio_files = dl_manager.extract(glob(f"{data_dir}/*.tar"))
+        audio_files = glob(f"{data_dir}/*.tar")
         audio = [dl_manager.iter_archive(path) for path in audio_files]
         transcript_file = f"{data_dir}/{self.config.name}.{self.config.name}.tsv"
         return [
@@ -66,8 +69,8 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
                 meta[filename] = transcription
 
         # iterator over audio
-        for i, single_audio in enumerate(audio):
-            for filename, file in single_audio:
+        for i, audio_single_dump in enumerate(audio):
+            for filename, file in audio_single_dump:
                 filename = filename.lstrip("./")
                 if filename not in meta:  # skip audio without transcription
                     continue
