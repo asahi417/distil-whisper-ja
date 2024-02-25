@@ -18,11 +18,14 @@ def get_cumulative_max_min(
     return cumulative_value + current_value, current_max, current_min
 
 
-def dataset_statistics(
-        data_name: str = "reazon-research/reazonspeech",
-        data_type: str = "tiny",
-        streaming: bool = True):
-    dataset = load_dataset(data_name, data_type, trust_remote_code=True, split='train', streaming=streaming)
+def dataset_statistics(data_name: str = "reazon-research/reazonspeech", data_type: str = "tiny"):
+
+    dataset = load_dataset(
+        f"{os.getcwd()}/reazon_custom_loader.py",
+        data_type,
+        split="train",
+        trust_remote_code=True
+    )
     iterator = iter(dataset)
     duration, duration_max, duration_min = 0, None, None
     amp_max, amp_max_max, amp_max_min = 0, None, None
