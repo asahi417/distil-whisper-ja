@@ -11,11 +11,11 @@ TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
+huggingface-cli login
 
 ###################
 # Generate Labels #
 ###################
-
 accelerate launch run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/reazon_custom_loader.py" \
@@ -50,7 +50,8 @@ git lfs install
 git clone "https://huggingface.co/${HF_ORG}/${HF_MODEL_ALIAS}"
 cp create_student_model.py "${HF_MODEL_ALIAS}"
 cp run_distillation.py "${HF_MODEL_ALIAS}"
-cd "${HF_MODEL_ALIAS}" || exit
+cp reazon_custom_loader.py "${HF_MODEL_ALIAS}"
+cd "${HF_MODEL_ALIAS}"
 python create_student_model.py \
   --teacher_checkpoint "${TEACHER_MODEL}" \
   --encoder_layers 32 \

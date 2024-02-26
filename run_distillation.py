@@ -608,7 +608,6 @@ def main():
         data_args.train_dataset_config_name,
         split=data_args.train_split_name,
         trust_remote_code=True,
-        text_column_name=data_args.text_column_name,
         cache_dir=data_args.dataset_cache_dir,
         token=model_args.token
     )
