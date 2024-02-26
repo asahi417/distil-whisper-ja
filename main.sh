@@ -2,9 +2,9 @@ export CUDA_VISIBLE_DEVICES=0
 export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
 
-#DATASET_TYPE="tiny"
+DATASET_TYPE="tiny"
 #DATASET_TYPE="small"
-DATASET_TYPE="medium"
+#DATASET_TYPE="medium"
 #DATASET_TYPE="large"
 #DATASET_TYPE="all"
 TEACHER_MODEL="openai/whisper-large-v3"
