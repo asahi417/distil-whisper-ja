@@ -814,7 +814,7 @@ def main():
         """
         # process audio input
         audio = [sample["array"] for sample in batch["audio"]]
-        inputs = feature_extractor(audio, sampling_rate=sampling_rate)
+        inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
         batch["input_features"] = inputs.input_features
         batch["input_length"] = [len(sample) for sample in audio]
 

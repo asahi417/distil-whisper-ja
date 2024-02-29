@@ -51,7 +51,7 @@ git clone "https://huggingface.co/${HF_ORG}/${HF_MODEL_ALIAS}"
 cp create_student_model.py "${HF_MODEL_ALIAS}"
 cp run_distillation.py "${HF_MODEL_ALIAS}"
 cp reazon_custom_loader.py "${HF_MODEL_ALIAS}"
-cd "${HF_MODEL_ALIAS}"
+cd "${HF_MODEL_ALIAS}" || exit
 python create_student_model.py \
   --teacher_checkpoint "${TEACHER_MODEL}" \
   --encoder_layers 32 \
@@ -65,7 +65,7 @@ python create_student_model.py \
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \
-  --train_dataset_name "${PWD}/reazon_custom_loader.py" \
+  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}" \
   --train_dataset_config_name "${DATASET_TYPE}" \
   --language "ja" \
   --task "transcribe" \
