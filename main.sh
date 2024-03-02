@@ -3,10 +3,24 @@ export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
 
 DATASET_TYPE="tiny"
-#DATASET_TYPE="small"
-#DATASET_TYPE="medium"
+MAX_STEPS=166
+WARMUP_STEPS=50
+SAVE_STEPS=50
+
+DATASET_TYPE="small"
+MAX_STEPS=1938
+WARMUP_STEPS=500
+SAVE_STEPS=500
+
+DATASET_TYPE="medium"
+MAX_STEPS=19348
+WARMUP_STEPS=500
+SAVE_STEPS=5000
+
 #DATASET_TYPE="large"
+
 #DATASET_TYPE="all"
+
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
@@ -51,7 +65,7 @@ git clone "https://huggingface.co/${HF_ORG}/${HF_MODEL_ALIAS}"
 cp create_student_model.py "${HF_MODEL_ALIAS}"
 cp run_distillation.py "${HF_MODEL_ALIAS}"
 cp reazon_custom_loader.py "${HF_MODEL_ALIAS}"
-cd "${HF_MODEL_ALIAS}" || exit
+cd "${HF_MODEL_ALIAS}"
 python create_student_model.py \
   --teacher_checkpoint "${TEACHER_MODEL}" \
   --encoder_layers 32 \
@@ -62,6 +76,8 @@ python create_student_model.py \
 ##########################
 # Training Student Model #
 ##########################
+rm -rf run_distillation.py
+cp ../run_distillation.py ./
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \
@@ -71,24 +87,22 @@ accelerate launch run_distillation.py \
   --task "transcribe" \
   --train_split_name "train" \
   --text_column_name "transcription" \
-  --save_steps 1000 \
-  --warmup_steps 50 \
+  --save_steps ${SAVE_STEPS} \
+  --warmup_steps ${WARMUP_STEPS} \
   --learning_rate 0.0001 \
   --lr_scheduler_type "constant_with_warmup" \
   --logging_steps 25 \
   --save_total_limit 1 \
-  --max_steps 5000 \
+  --max_steps "${MAX_STEPS}" \
   --wer_threshold 10 \
-  --per_device_train_batch_size 64 \
-  --per_device_eval_batch_size 64 \
+  --per_device_train_batch_size 32 \
+  --gradient_accumulation_steps 8 \
   --dataloader_num_workers 16 \
   --preprocessing_num_workers 16 \
-  --ddp_timeout 7200 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
   --gradient_checkpointing \
   --overwrite_output_dir \
-  --predict_with_generate \
   --freeze_encoder \
   --push_to_hub
