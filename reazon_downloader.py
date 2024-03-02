@@ -2,17 +2,16 @@
 - files are saved at your cache folder (`~/.cache/reazon_manual_download/{target_size}`)
 - dataset https://huggingface.co/datasets/reazon-research/reazonspeech
 """
+import argparse
 import os
 import urllib.request
 from time import time
 from os.path import expanduser
 
-
-# target = "tiny"
-# target = "small"
-# target = "medium"
-target = "large"
-# target = "all"
+parser = argparse.ArgumentParser(description='Download ReazonSpeech locally.')
+parser.add_argument('--target', default="tiny", help="tiny/small/medium/large/all", type=str)
+arg = parser.parse_args()
+target = arg.target
 
 base_url = "https://reazonspeech.s3.abci.ai/"
 dataset = {
