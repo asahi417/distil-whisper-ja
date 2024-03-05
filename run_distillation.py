@@ -62,6 +62,8 @@ from transformers.models.whisper.english_normalizer import BasicTextNormalizer, 
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")

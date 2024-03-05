@@ -14,8 +14,14 @@ WARMUP_STEPS=500
 SAVE_STEPS=5000
 
 #DATASET_TYPE="large"
+#MAX_STEPS=
+#WARMUP_STEPS=
+#SAVE_STEPS=
 
 #DATASET_TYPE="all"
+#MAX_STEPS=
+#WARMUP_STEPS=
+#SAVE_STEPS=
 
 ##########
 # Config #
@@ -33,8 +39,7 @@ huggingface-cli login
 ####################
 # Download Dataset #
 ####################
-
-
+python reazon_downloader.py --target "${DATASET_TYPE}"
 
 ###################
 # Generate Labels #
@@ -48,8 +53,8 @@ accelerate launch run_pseudo_labelling.py \
   --id_column_name "name" \
   --per_device_eval_batch_size 50 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 8 \
-  --preprocessing_num_workers 8 \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
   --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \
@@ -106,8 +111,8 @@ accelerate launch run_distillation.py \
   --wer_threshold 10 \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 8 \
-  --dataloader_num_workers 16 \
-  --preprocessing_num_workers 16 \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
