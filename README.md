@@ -5,11 +5,11 @@ Following descriptions are taken from the original repository.
 ## Training Distil-Whisper
 Reproducing the Distil-Whisper project requires four stages to be completed in successive order:
 
-[//]: # (0. [Download Dataset]&#40;#0-download-dataset&#41;)
-1. [Pseudo-labelling](#1-pseudo-labelling)
-2. [Initialisation](#2-initialisation)
-3. [Training](#3-training)
-4. [Evaluation](#4-evaluation)
+1. [Download Dataset](#0-download-dataset)
+2. [Pseudo-labelling](#1-pseudo-labelling)
+3. [Initialisation](#2-initialisation)
+4. [Training](#3-training)
+5. [Evaluation](#4-evaluation)
 
 This README is partitioned according to the four stages. Each section provides a minimal example for running the
 scripts used in the project. We will use a running example of distilling the Whisper model for Hindi speech recognition
@@ -43,10 +43,10 @@ HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 ```
 
-## 0. Download Dataset
+## 1. Download Dataset
 
 
-## 1. Pseudo-Labelling
+## 2. Pseudo-Labelling
 
 The python script [`run_pseudo_labelling.py`](run_pseudo_labelling.py) is a flexible inference script that can be used
 to generate pseudo-labels under a range of settings, including using both greedy and beam-search.
@@ -78,7 +78,7 @@ rm -rf "${HF_DATASET_ALIAS}"
 ```
 
 
-## 2. Initialisation
+## 3. Initialisation
 
 The script [`create_student_model.py`](create_student_model.py) can be used to initialise a small student model
 from a large teacher model. When initialising a student model with fewer layers than the teacher model, the student is 
@@ -119,7 +119,7 @@ python create_student_model.py \
 
 The initialised model will be saved to the sub-directory in our model repository. 
 
-## 3. Training
+## 4. Training
 
 The script [`run_distillation.py`](run_distillation.py) is an end-to-end script for loading multiple
 datasets, a student model, a teacher model, and performing teacher-student distillation. It uses the loss formulation
@@ -204,7 +204,7 @@ There are a few noteworthy arguments that can be configured to give optimal trai
 7. `timestamp_probability`: the per-sample probability for retaining timestamp tokens in the labels (should they contain them). Retaining some portion of timestamp tokens in the training data is required to ensure the distilled model can predict timestamps at inference time. In our experiments, we found that training on timestamps with high-probability hurts the distilled model's transcription performance. Thus, we recommend setting this to a value below 0.5. Typically, a value of 0.2 works well, giving good transcription and timestamp performance.
 8. `condition_on_prev_probability`: the per-sample probability for conditioning on previous labels. Conditioning on previous tokens is required to ensure the distilled model can be used with the "sequential" long-form transcription algorithm at inference time. We did not experiment with this parameter, but found a value of 0.1 to provide adequate performance. OpenAI pre-trained Whisper on with a 50% probability for conditioning on previous tokens. Thus, you might wish to try higher values.
 
-## 4. Evaluation
+## 5. Evaluation
 
 There are two types of evaluation performed in Distil-Whisper:
 1. Short form: evaluation on audio samples less than 30s in duration. Examples include typical ASR test sets, such as the LibriSpeech validation set.

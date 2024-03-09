@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional, Union
 import datasets
 import evaluate
 import numpy as np
+import pandas as pd
 import torch
 import transformers
 from accelerate import Accelerator, InitProcessGroupKwargs
@@ -602,24 +603,30 @@ def main():
     wer_metric, pred_str, label_str, norm_pred_str, norm_label_str = compute_metrics(eval_preds, eval_labels)
     wer_desc = " ".join([f"Eval {key}: {value} |" for key, value in wer_metric.items()])
     logger.info(wer_desc)
-    # Save metrics + predictions
-    log_metric(
-        accelerator,
-        metrics=wer_metric,
-        train_time=eval_time,
-        prefix=data_args.dataset_split_name,
-    )
-    log_pred(
-        accelerator,
-        pred_str,
-        label_str,
-        norm_pred_str,
-        norm_label_str,
-        prefix=data_args.dataset_split_name,
-    )
 
+    # Save metrics
+    log_metrics = {}
+    for k, v in wer_metric.items():
+        log_metrics[f"{data_args.dataset_split_name}/{k}"] = v
+    log_metrics[f"{data_args.dataset_split_name}/time"] = eval_time
+    accelerator.log(log_metrics)
     accelerator.wait_for_everyone()
     accelerator.end_training()
+
+    # Save predictions
+    if accelerator.is_main_process:
+        str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
+        # log as a table with the appropriate headers
+        pd.DataFrame(str_data, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
+            f"{training_args.output_dir}/all_predictions.{data_args.dataset_split_name}.csv"
+        )
+        # log incorrect normalised predictions
+        str_data = np.asarray(str_data)
+        str_data_incorrect = str_data[str_data[:, -2] != str_data[:, -1]]
+        # log as a table with the appropriate headers
+        pd.DataFrame(str_data_incorrect, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
+            f"{training_args.output_dir}/all_predictions.{data_args.dataset_split_name}.csv"
+        )
 
 
 if __name__ == "__main__":
