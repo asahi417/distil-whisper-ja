@@ -120,3 +120,25 @@ accelerate launch run_distillation.py \
   --overwrite_output_dir \
   --freeze_encoder \
   --push_to_hub
+
+
+##########################
+# Evaluate Student Model #
+##########################
+EVAL_DATASET="asahi417/ja_asr.common_voice_8_0"
+#EVAL_DATASET="asahi417/ja_asr.jsut-basic5000"
+
+accelerate launch run_short_form_eval.py \
+  --model_name_or_path "${HF_ORG}/${HF_MODEL_ALIAS}" \
+  --dataset_name "${EVAL_DATASET}" \
+  --dataset_split_name "test" \
+  --text_column_name "transcription" \
+  --output_dir "./" \
+  --per_device_eval_batch_size 64 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 16 \
+  --generation_max_length 256 \
+  --language "ja" \
+  --task "transcribe" \
+  --wandb_project "wandb.${HF_MODEL_ALIAS}" \
+  --attn_type "flash_attn"

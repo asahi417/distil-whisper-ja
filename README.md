@@ -5,6 +5,7 @@ Following descriptions are taken from the original repository.
 ## Training Distil-Whisper
 Reproducing the Distil-Whisper project requires four stages to be completed in successive order:
 
+[//]: # (0. [Download Dataset]&#40;#0-download-dataset&#41;)
 1. [Pseudo-labelling](#1-pseudo-labelling)
 2. [Initialisation](#2-initialisation)
 3. [Training](#3-training)
@@ -41,6 +42,9 @@ HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 ```
+
+## 0. Download Dataset
+
 
 ## 1. Pseudo-Labelling
 
@@ -240,40 +244,3 @@ Evaluating on OOD data provides insight as to how well the distilled model is li
 distributions at inference time. In this example, Common Voice is *in-distribution (ID)*, since it is taken from the same 
 distribution as the Common Voice training set, whereas FLEURS is OOD, since it is not used as part of the training set.
 
-### Long Form
-
-Long form evaluation runs on the premise that a single long audio file can be *chunked* into smaller segments and 
-inferred in parallel. The resulting transcriptions are then joined at the boundaries to give the final text prediction. 
-A small overlap (or *stride*) is used between adjacent segments to ensure a continuous transcription across chunks.
-
-This style of chunked inference is performed using the [`pipeline`](https://huggingface.co/docs/transformers/main_classes/pipelines)
-class, which provides a wrapper around the [`.generate`](https://huggingface.co/docs/transformers/model_doc/whisper#transformers.WhisperForConditionalGeneration.generate) 
-function for long-form inference.
-
-The script [`run_long_form_eval.py`](run_long_form_eval.py) can be used to evaluate the trained student model on an 
-arbitrary number of long-form evaluation sets. Since we don't have a long-form validation set for Hindi to hand, we'll
-evaluate the teacher model on the TED-LIUM validation set in this example:
-
-```bash
-#!/usr/bin/env bash
-
-python run_long_form_eval.py \
-  --model_name_or_path "openai/whisper-large-v2" \
-  --dataset_name "distil-whisper/tedlium-long-form" \
-  --dataset_config_name "all" \
-  --dataset_split_name "validation" \
-  --text_column_name "text" \
-  --output_dir "./" \
-  --per_device_eval_batch_size 64 \
-  --chunk_length_s 30 \
-  --language "en" \
-  --return_timestamps \
-  --dtype "bfloat16" \
-  --report_to "wandb" \
-  --streaming
-```
-
-The argument `chunk_length_s` controls the length of the chunked audio samples. It should be set to match the typical
-length of audio the student model was trained on. If unsure about what value of `chunk_length_s` is optimal for your case,
-it is recommended to run a *sweep* over all possible values. A template script for running a [WandB sweep](https://docs.wandb.ai/guides/sweeps) 
-can be found under [`run_chunk_length_s_sweep.yaml`](flax/long_form_transcription_scripts/run_chunk_length_s_sweep.yaml).

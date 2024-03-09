@@ -101,8 +101,8 @@ if __name__ == '__main__':
         stats["reazonspeech.tiny"] = dataset_statistics(data_type="tiny")
     if "reazonspeech.small" not in stats:
         stats["reazonspeech.small"] = dataset_statistics(data_type="small")
-    # if "reazonspeech.medium" not in stats:
-    #     stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
+    if "reazonspeech.medium" not in stats:
+        stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
     # if "reazonspeech.large" in stats:
     #     stats["reazonspeech.large"] = dataset_statistics(data_type="large")
     # if "reazonspeech.all" in stats:
