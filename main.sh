@@ -125,41 +125,52 @@ accelerate launch run_distillation.py \
 ##########################
 # Evaluate Student Model #
 ##########################
-EVAL_DATASET="asahi417/ja_asr.common_voice_8_0"
-#EVAL_DATASET="asahi417/ja_asr.jsut-basic5000"
-accelerate launch run_short_form_eval.py \
-  --model_name_or_path "${HF_ORG}/${HF_MODEL_ALIAS}" \
-  --dataset_name "${EVAL_DATASET}" \
-  --dataset_split_name "test" \
-  --text_column_name "transcription" \
-  --output_dir "eval/${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
-  --per_device_eval_batch_size 256 \
-  --dtype "bfloat16" \
-  --dataloader_num_workers 64 \
-  --generation_max_length 256 \
-  --language "ja" \
-  --task "transcribe" \
-  --wandb_project "wandb.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
-  --attn_type "flash_attn"
-
+for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
+do
+  accelerate launch run_short_form_eval.py \
+    --model_name_or_path "${HF_ORG}/${HF_MODEL_ALIAS}" \
+    --dataset_name "${EVAL_DATASET}" \
+    --dataset_split_name "test" \
+    --text_column_name "transcription" \
+    --output_dir "eval/${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
+    --per_device_eval_batch_size 256 \
+    --dtype "bfloat16" \
+    --dataloader_num_workers 64 \
+    --preprocessing_num_workers 256 \
+    --generation_max_length 256 \
+    --language "ja" \
+    --task "transcribe" \
+    --wandb_project "wandb.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
+    --attn_type "flash_attn"
+done
 
 #####################################
 # (Optional) Evaluate Teacher Model #
 #####################################
-EVAL_DATASET="asahi417/ja_asr.common_voice_8_0"
-#EVAL_DATASET="asahi417/ja_asr.jsut-basic5000"
-accelerate launch run_short_form_eval.py \
-  --model_name_or_path "${TEACHER_MODEL}" \
-  --dataset_name "${EVAL_DATASET}" \
-  --dataset_split_name "test" \
-  --text_column_name "transcription" \
-  --output_dir "eval/${TEACHER_MODEL##*/}" \
-  --per_device_eval_batch_size 32 \
-  --dtype "bfloat16" \
-  --dataloader_num_workers 64 \
-  --generation_max_length 256 \
-  --language "ja" \
-  --task "transcribe" \
-  --wandb_project "wandb.${TEACHER_MODEL##*/}" \
-  --attn_type "flash_attn"
+WHISPER_MODEL="openai/whisper-tiny"
+BATCH_SIZE=256
+WHISPER_MODEL="openai/whisper-small"
+BATCH_SIZE=128
+WHISPER_MODEL="openai/whisper-medium"
+BATCH_SIZE=64
+WHISPER_MODEL="openai/whisper-large-v3"
+BATCH_SIZE=32
 
+for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
+do
+  accelerate launch run_short_form_eval.py \
+    --model_name_or_path "${WHISPER_MODEL}" \
+    --dataset_name "${EVAL_DATASET}" \
+    --dataset_split_name "test" \
+    --text_column_name "transcription" \
+    --output_dir "eval/${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \
+    --per_device_eval_batch_size "${BATCH_SIZE}" \
+    --dtype "bfloat16" \
+    --dataloader_num_workers 64 \
+    --preprocessing_num_workers 256 \
+    --generation_max_length 256 \
+    --language "ja" \
+    --task "transcribe" \
+    --wandb_project "wandb.${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \
+    --attn_type "flash_attn"
+done

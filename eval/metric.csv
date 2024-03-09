@@ -1,0 +1,13 @@
+,model,data,wer
+7,distil-whisper-large-v3-ja-reazonspeech-small,common_voice_8_0,79.74570600044612
+1,distil-whisper-large-v3-ja-reazonspeech-tiny,common_voice_8_0,99.88846754405532
+2,whisper-large-v3,common_voice_8_0,55.40932411331697
+9,whisper-medium,common_voice_8_0,63.64041936203435
+5,whisper-small,common_voice_8_0,74.21369618559001
+6,whisper-tiny,common_voice_8_0,93.77648895828686
+10,distil-whisper-large-v3-ja-reazonspeech-small,jsut-basic5000,89.34
+11,distil-whisper-large-v3-ja-reazonspeech-tiny,jsut-basic5000,100.0
+8,whisper-large-v3,jsut-basic5000,59.34
+3,whisper-medium,jsut-basic5000,69.52000000000001
+4,whisper-small,jsut-basic5000,82.02000000000001
+0,whisper-tiny,jsut-basic5000,97.72
