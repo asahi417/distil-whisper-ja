@@ -18,14 +18,30 @@ def get_cumulative_max_min(
     return cumulative_value + current_value, current_max, current_min
 
 
-def dataset_statistics(data_type: str = "tiny"):
+def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny"):
 
-    dataset = load_dataset(
-        f"{os.getcwd()}/reazon_custom_loader.py",
-        data_type,
-        split="train",
-        trust_remote_code=True
-    )
+    if data == "reazonspeech":
+        dataset = load_dataset(
+            f"{os.getcwd()}/reazon_custom_loader.py",
+            data_type,
+            split="train",
+            trust_remote_code=True
+        )
+    elif data == "ja_asr.jsut-basic5000":
+        dataset = load_dataset(
+            "asahi417/ja_asr.jsut-basic5000",
+            split="test",
+            trust_remote_code=True
+        )
+    elif data == "common_voice_8_0":
+        dataset = load_dataset(
+            "mozilla-foundation/common_voice_8_0",
+            "ja",
+            split="test",
+            trust_remote_code=True
+        )
+    else:
+        raise ValueError(f"unknown dataset {data}")
     iterator = iter(dataset)
     duration, duration_max, duration_min = 0, None, None
     amp_max, amp_max_max, amp_max_min = 0, None, None
@@ -47,34 +63,29 @@ def dataset_statistics(data_type: str = "tiny"):
         "data_size": data_size
     }
 
-if os.path.exists("stats.json"):
-    with open("stats.json") as f:
+if os.path.exists("data_statistics.json"):
+    with open("data_statistics.json") as f:
         stats = json.load(f)
 else:
     stats = {}
 
-if "tiny" in stats:
-    stat_tiny = stats["tiny"]
-else:
-    stat_tiny = dataset_statistics(data_type="tiny")
-if "small" in stats:
-    stat_small = stats["small"]
-else:
-    stat_small = dataset_statistics(data_type="small")
-if "medium" in stats:
-    stat_medium = stats["medium"]
-else:
-    stat_medium = dataset_statistics(data_type="medium")
-# stat_large = dataset_statistics(data_type="large")
-# stat_all = dataset_statistics(data_type="all")
-with open("stats.json", "w") as f:
-    json.dump({
-        "tiny": stat_tiny,
-        "small": stat_small,
-        "medium": stat_medium,
-        # "large": stat_large,
-        # "all": stat_all,
-    }, f)
+if "ja_asr.jsut-basic5000" not in stats:
+    stats["ja_asr.jsut-basic5000"] = dataset_statistics("ja_asr.jsut-basic5000")
+if "common_voice_8_0" not in stats:
+    stats["common_voice_8_0"] = dataset_statistics("common_voice_8_0")
+if "reazonspeech.tiny" not in stats:
+    stats["reazonspeech.tiny"] = dataset_statistics(data_type="tiny")
+if "reazonspeech.small" not in stats:
+    stats["reazonspeech.small"] = dataset_statistics(data_type="small")
+if "reazonspeech.medium" not in stats:
+    stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
+# if "reazonspeech.large" in stats:
+#     stats["reazonspeech.large"] = dataset_statistics(data_type="large")
+# if "reazonspeech.all" in stats:
+#     stats["reazonspeech.all"] = dataset_statistics(data_type="all")
+
+with open("data_statistics.json", "w") as f:
+    json.dump(stats, f)
 
 
 
