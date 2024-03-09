@@ -16,7 +16,7 @@
 """
 Evaluating a Whisper model on one or more short-form evaluation datasets.
 """
-
+import json
 # You can also adapt this script for your own evaluation tasks. Pointers for this are left as comments.
 import logging
 import os
@@ -613,20 +613,18 @@ def main():
     accelerator.wait_for_everyone()
     accelerator.end_training()
 
-    # Save predictions
-    if accelerator.is_main_process:
-        str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
-        # log as a table with the appropriate headers
-        pd.DataFrame(str_data, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
-            f"{training_args.output_dir}/all_predictions.{data_args.dataset_split_name}.csv"
-        )
-        # log incorrect normalised predictions
-        str_data = np.asarray(str_data)
-        str_data_incorrect = str_data[str_data[:, -2] != str_data[:, -1]]
-        # log as a table with the appropriate headers
-        pd.DataFrame(str_data_incorrect, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
-            f"{training_args.output_dir}/all_predictions.{data_args.dataset_split_name}.csv"
-        )
+    # Save predictions + metrics
+    with open(f"{training_args.output_dir}/metric.{data_args.dataset_split_name}.json", "w") as f:
+        json.dump(wer_metric, f)
+    str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
+    pd.DataFrame(str_data, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
+        f"{training_args.output_dir}/all_predictions.{data_args.dataset_split_name}.csv"
+    )
+    str_data = np.asarray(str_data)
+    str_data_incorrect = str_data[str_data[:, -2] != str_data[:, -1]]
+    pd.DataFrame(str_data_incorrect, columns=["Target", "Pred", "Norm Target", "Norm Pred"]).to_csv(
+        f"{training_args.output_dir}/incorrect_predictions.{data_args.dataset_split_name}.csv"
+    )
 
 
 if __name__ == "__main__":

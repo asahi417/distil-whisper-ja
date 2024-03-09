@@ -132,10 +132,10 @@ accelerate launch run_short_form_eval.py \
   --dataset_name "${EVAL_DATASET}" \
   --dataset_split_name "test" \
   --text_column_name "transcription" \
-  --output_dir "eval.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
+  --output_dir "eval/${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
   --per_device_eval_batch_size 256 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 16 \
+  --dataloader_num_workers 64 \
   --generation_max_length 256 \
   --language "ja" \
   --task "transcribe" \
@@ -153,10 +153,10 @@ accelerate launch run_short_form_eval.py \
   --dataset_name "${EVAL_DATASET}" \
   --dataset_split_name "test" \
   --text_column_name "transcription" \
-  --output_dir "eval.${TEACHER_MODEL##*/}" \
-  --per_device_eval_batch_size 256 \
+  --output_dir "eval/${TEACHER_MODEL##*/}" \
+  --per_device_eval_batch_size 32 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 16 \
+  --dataloader_num_workers 64 \
   --generation_max_length 256 \
   --language "ja" \
   --task "transcribe" \
