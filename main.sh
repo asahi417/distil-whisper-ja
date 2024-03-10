@@ -39,7 +39,7 @@ huggingface-cli login
 ####################
 # Download Dataset #
 ####################
-python reazon_downloader.py --target "${DATASET_TYPE}"
+python reazon_downloader.py -t "${DATASET_TYPE}" -p 100
 
 ###################
 # Generate Labels #

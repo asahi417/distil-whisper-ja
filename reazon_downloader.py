@@ -42,7 +42,10 @@ if __name__ == '__main__':
     urls.append(BASE_URL + DATASET[arg.target]["tsv"])
     urls = [i for i in urls if not os.path.exists(f"{target_dir}/{arg.target}.{os.path.basename(i)}")]
     filenames = [f"{target_dir}/{arg.target}.{os.path.basename(i)}" for i in urls]
+    print(f"Total files to download: {len(filenames)}")
 
     # start downloader
+    print(f"Worker: {arg.pool}")
     pool = Pool(arg.pool)
-    pool.starmap_async(dl, tqdm(zip(urls, filenames), total=len(filenames)))
+    # pool.starmap_async(dl, tqdm(zip(urls, filenames), total=len(filenames)))
+    pool.starmap(dl, tqdm(zip(urls, filenames), total=len(filenames)))
