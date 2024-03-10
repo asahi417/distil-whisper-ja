@@ -46,6 +46,5 @@ if __name__ == '__main__':
 
     # start downloader
     print(f"Worker: {arg.pool}")
-    pool = Pool(arg.pool)
-    # pool.starmap_async(dl, tqdm(zip(urls, filenames), total=len(filenames)))
-    pool.starmap(dl, tqdm(zip(urls, filenames), total=len(filenames)))
+    with Pool(arg.pool) as pool:
+        pool.starmap(dl, tqdm(zip(urls, filenames), total=len(filenames)))
