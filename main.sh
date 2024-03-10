@@ -53,8 +53,8 @@ accelerate launch run_pseudo_labelling.py \
   --id_column_name "name" \
   --per_device_eval_batch_size 50 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
+  --dataloader_num_workers 64 \
+  --preprocessing_num_workers 128 \
   --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \
@@ -111,8 +111,8 @@ accelerate launch run_distillation.py \
   --wer_threshold 10 \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 8 \
-  --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
+  --dataloader_num_workers 64 \
+  --preprocessing_num_workers 128 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
@@ -136,7 +136,7 @@ do
     --per_device_eval_batch_size 256 \
     --dtype "bfloat16" \
     --dataloader_num_workers 64 \
-    --preprocessing_num_workers 256 \
+    --preprocessing_num_workers 128 \
     --generation_max_length 256 \
     --language "ja" \
     --task "transcribe" \
@@ -167,7 +167,7 @@ do
     --per_device_eval_batch_size "${BATCH_SIZE}" \
     --dtype "bfloat16" \
     --dataloader_num_workers 64 \
-    --preprocessing_num_workers 256 \
+    --preprocessing_num_workers 128 \
     --generation_max_length 256 \
     --language "ja" \
     --task "transcribe" \

@@ -32,7 +32,7 @@ def dl(url, target_file):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download ReazonSpeech locally.')
     parser.add_argument('-t', '--target', default="tiny", help="tiny/small/medium/large/all", type=str)
-    parser.add_argument('-p', '--pool', default=500, help="thread pool", type=int)
+    parser.add_argument('-p', '--pool', default=10, help="thread pool", type=int)
     arg = parser.parse_args()
     target_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{arg.target}"
     os.makedirs(target_dir, exist_ok=True)
