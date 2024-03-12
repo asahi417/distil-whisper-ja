@@ -124,8 +124,7 @@ accelerate launch run_distillation.py \
   --overwrite_output_dir \
   --freeze_encoder \
   --push_to_hub \
-  --do_train \
-  --max_train_samples 30000
+  --do_train
 
 
 
