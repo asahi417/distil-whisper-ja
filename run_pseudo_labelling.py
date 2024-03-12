@@ -558,7 +558,6 @@ def main():
         data_args.max_label_length if data_args.max_label_length is not None else model.config.max_length
     )
     audio_column_name = data_args.audio_column_name
-    num_workers = data_args.preprocessing_num_workers
     dataloader_num_workers = training_args.dataloader_num_workers
     text_column_name = data_args.text_column_name
     model_input_name = feature_extractor.model_input_names[0]
@@ -590,7 +589,7 @@ def main():
     vectorized_datasets = raw_datasets.map(
         prepare_dataset,
         remove_columns=raw_datasets_features,
-        num_proc=num_workers,
+        num_proc=data_args.preprocessing_num_workers,
         desc="preprocess dataset",
     )
 
@@ -820,7 +819,7 @@ def main():
                 blocking=False,
             )
     if accelerator.is_main_process:
-        raw_datasets.save_to_disk(output_dir, num_proc=num_workers)
+        raw_datasets.save_to_disk(output_dir, num_proc=data_args.preprocessing_num_workers)
         if training_args.push_to_hub:
             raw_datasets.push_to_hub(repo_name, config_name=data_args.dataset_config_name)
     accelerator.end_training()

@@ -14,9 +14,9 @@ WARMUP_STEPS=500
 SAVE_STEPS=5000
 
 DATASET_TYPE="large"
-MAX_STEPS=
-WARMUP_STEPS=
-SAVE_STEPS=
+MAX_STEPS=96760
+WARMUP_STEPS=2500
+SAVE_STEPS=50000
 
 #DATASET_TYPE="all"
 #MAX_STEPS=
@@ -26,9 +26,12 @@ SAVE_STEPS=
 ##########
 # Config #
 ##########
-export CUDA_VISIBLE_DEVICES=0
-export WANDB_DISABLED="true"
+#export CUDA_VISIBLE_DEVICES=0
+#export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
+# need to fix the SSL error
+export CURL_CA_BUNDLE=""
+export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
 
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
@@ -51,11 +54,11 @@ accelerate launch run_pseudo_labelling.py \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
-  --per_device_eval_batch_size 50 \
+  --per_device_eval_batch_size 16 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 64 \
+  --dataloader_num_workers 1 \
   --preprocessing_num_workers 128 \
-  --logging_steps 100 \
+  --logging_steps 50000 \
   --max_label_length 128 \
   --language "ja" \
   --task "transcribe" \
@@ -68,6 +71,7 @@ accelerate launch run_pseudo_labelling.py \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
   --push_to_hub
 rm -rf "${HF_DATASET_ALIAS}"
+
 
 
 ############################
@@ -105,21 +109,24 @@ accelerate launch run_distillation.py \
   --warmup_steps ${WARMUP_STEPS} \
   --learning_rate 0.0001 \
   --lr_scheduler_type "constant_with_warmup" \
-  --logging_steps 25 \
+  --logging_steps 500 \
   --save_total_limit 1 \
   --max_steps "${MAX_STEPS}" \
   --wer_threshold 10 \
   --per_device_train_batch_size 32 \
-  --gradient_accumulation_steps 8 \
-  --dataloader_num_workers 64 \
-  --preprocessing_num_workers 128 \
+  --gradient_accumulation_steps 1 \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 64 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
   --gradient_checkpointing \
   --overwrite_output_dir \
   --freeze_encoder \
-  --push_to_hub
+  --push_to_hub \
+  --do_train \
+  --max_train_samples 30000
+
 
 
 ##########################

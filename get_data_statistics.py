@@ -6,6 +6,7 @@ from tqdm import tqdm
 from transformers import WhisperTokenizer
 
 TOKENIZER = WhisperTokenizer.from_pretrained("openai/whisper-large-v3", language="japanese")
+NUM_PROC = 128
 
 
 def get_cumulative_max_min(
@@ -21,14 +22,15 @@ def get_cumulative_max_min(
     return cumulative_value + current_value, current_max, current_min
 
 
-def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny"):
+def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny", num_proc: int = 1):
 
     if data == "reazonspeech":
         dataset = load_dataset(
             f"{os.getcwd()}/reazon_custom_loader.py",
             data_type,
             split="train",
-            trust_remote_code=True
+            trust_remote_code=True,
+            num_proc=num_proc,
         )
     elif data == "ja_asr.jsut-basic5000":
         dataset = load_dataset(
@@ -104,7 +106,7 @@ if __name__ == '__main__':
     if "reazonspeech.medium" not in stats:
         stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
     if "reazonspeech.large" in stats:
-        stats["reazonspeech.large"] = dataset_statistics(data_type="large")
+        stats["reazonspeech.large"] = dataset_statistics(data_type="large", num_proc=128)
     # if "reazonspeech.all" in stats:
     #     stats["reazonspeech.all"] = dataset_statistics(data_type="all")
 

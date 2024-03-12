@@ -269,55 +269,6 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 
-def log_metric(
-    accelerator,
-    metrics: Dict,
-    train_time: float,
-    prefix: str = "eval",
-):
-    """Helper function to log all evaluation metrics with the correct prefixes and styling."""
-    log_metrics = {}
-    for k, v in metrics.items():
-        log_metrics[f"{prefix}/{k}"] = v
-    log_metrics[f"{prefix}/time"] = train_time
-    accelerator.log(log_metrics)
-
-
-def log_pred(
-    accelerator,
-    pred_str: List[str],
-    label_str: List[str],
-    norm_pred_str: List[str],
-    norm_label_str: List[str],
-    prefix: str = "eval",
-    num_lines: int = 200000,
-):
-    """Helper function to log target/predicted transcriptions to weights and biases (wandb)."""
-    if accelerator.is_main_process:
-        wandb_tracker = accelerator.get_tracker("wandb")
-        # pretty name for split
-        prefix = prefix.replace("/", "-")
-
-        # convert str data to a wandb compatible format
-        str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
-        # log as a table with the appropriate headers
-        wandb_tracker.log_table(
-            table_name=f"{prefix}/all_predictions",
-            columns=["Target", "Pred", "Norm Target", "Norm Pred"],
-            data=str_data[:num_lines],
-        )
-
-        # log incorrect normalised predictions
-        str_data = np.asarray(str_data)
-        str_data_incorrect = str_data[str_data[:, -2] != str_data[:, -1]]
-        # log as a table with the appropriate headers
-        wandb_tracker.log_table(
-            table_name=f"{prefix}/incorrect_predictions",
-            columns=["Target", "Pred", "Norm Target", "Norm Pred"],
-            data=str_data_incorrect[:num_lines],
-        )
-
-
 def main():
     # 1. Parse input arguments
     # We keep distinct sets of args, for cleaner separation of model/data/training related args
