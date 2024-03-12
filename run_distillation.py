@@ -730,22 +730,25 @@ def main():
 
     # 10.3: filter training data based on WER threshold -> this is KEY to good distillation performance
     def is_wer_in_range(ground_truth, whisper_transcript):
-        norm_ground_truth = normalizer(ground_truth)
-        if (
-            isinstance(whisper_transcript, str)
-            and whisper_transcript.startswith("[")
-            and whisper_transcript.endswith("]")
-        ):
-            whisper_transcript = re.findall(r"\d+", whisper_transcript)
-            whisper_transcript = [int(token) for token in whisper_transcript]
-        if isinstance(whisper_transcript, list):
-            whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
-        if len(norm_ground_truth) > 0 and whisper_transcript is not None:
-            norm_whisper_transcript = normalizer(whisper_transcript)
-            wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
-            return wer < wer_threshold
-        else:
-            # filter automatically since we can't know the WER
+        try:
+            norm_ground_truth = normalizer(ground_truth)
+            if (
+                isinstance(whisper_transcript, str)
+                and whisper_transcript.startswith("[")
+                and whisper_transcript.endswith("]")
+            ):
+                whisper_transcript = re.findall(r"\d+", whisper_transcript)
+                whisper_transcript = [int(token) for token in whisper_transcript]
+            if isinstance(whisper_transcript, list):
+                whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
+            if len(norm_ground_truth) > 0 and whisper_transcript is not None:
+                norm_whisper_transcript = normalizer(whisper_transcript)
+                wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
+                return wer < wer_threshold
+            else:
+                # filter automatically since we can't know the WER
+                return False
+        except Exception:
             return False
 
     filter_by_wer_threshold = partial(
@@ -754,8 +757,6 @@ def main():
         input_columns=["text", "whisper_transcript"],
     )
 
-    # TODO: as this process is very bulky for large datasets, it should be done as a stand alone job, which add a new
-    #  column to the existing dataset (wer-10%, wer-20%?). Or at least cache the index to keep.
     if wer_threshold is not None and use_pseudo_labels:
         raw_datasets["train"] = filter_by_wer_threshold(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset by wer")
         raw_datasets.push_to_hub(

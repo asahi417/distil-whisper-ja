@@ -125,6 +125,7 @@ accelerate launch run_distillation.py \
   --freeze_encoder \
   --push_to_hub \
   --do_train
+#  --max_train_samples 1000
 
 
 
