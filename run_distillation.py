@@ -759,10 +759,13 @@ def main():
 
     if wer_threshold is not None and use_pseudo_labels:
         raw_datasets["train"] = filter_by_wer_threshold(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset by wer")
-        raw_datasets.push_to_hub(
-            f"{data_args.train_dataset_name}.wer_{wer_threshold}",
-            data_args.train_dataset_config_name
-        )
+        try:
+            raw_datasets.push_to_hub(
+                f"{data_args.train_dataset_name}.wer_{wer_threshold}",
+                data_args.train_dataset_config_name
+            )
+        except Exception:
+            print("WARNING: PUSH TO REPO FAILED")
 
 
     # 10.4: pre-process training/evaluation datasets
