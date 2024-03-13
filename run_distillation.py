@@ -759,13 +759,16 @@ def main():
 
     if wer_threshold is not None and use_pseudo_labels:
         raw_datasets["train"] = filter_by_wer_threshold(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset by wer")
-        try:
-            raw_datasets.push_to_hub(
-                f"{data_args.train_dataset_name}.wer_{wer_threshold}",
-                data_args.train_dataset_config_name
-            )
-        except Exception:
-            print("WARNING: PUSH TO REPO FAILED")
+        while True:
+            try:
+                raw_datasets.push_to_hub(
+                    f"{data_args.train_dataset_name}.wer_{wer_threshold}",
+                    data_args.train_dataset_config_name
+                )
+                break
+            except Exception:
+                time.sleep(60)
+                print("WARNING: PUSH TO REPO FAILED")
 
 
     # 10.4: pre-process training/evaluation datasets
@@ -1139,3 +1142,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def is_wer_in_range(ground_truth, whisper_transcript):
+    norm_ground_truth = normalizer(ground_truth)
+    if (
+        isinstance(whisper_transcript, str)
+        and whisper_transcript.startswith("[")
+        and whisper_transcript.endswith("]")
+    ):
+        whisper_transcript = re.findall(r"\d+", whisper_transcript)
+        whisper_transcript = [int(token) for token in whisper_transcript]
+
+        if isinstance(whisper_transcript, list):
+            whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
+        if len(norm_ground_truth) > 0 and whisper_transcript is not None:
+            norm_whisper_transcript = normalizer(whisper_transcript)
+            wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
+            return wer < 10
+        else:
+            # filter automatically since we can't know the WER
+            return False

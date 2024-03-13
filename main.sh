@@ -112,7 +112,6 @@ accelerate launch run_distillation.py \
   --logging_steps 500 \
   --save_total_limit 1 \
   --max_steps "${MAX_STEPS}" \
-  --wer_threshold 10 \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
@@ -124,7 +123,10 @@ accelerate launch run_distillation.py \
   --overwrite_output_dir \
   --freeze_encoder \
   --push_to_hub \
-  --do_train
+  --do_train \
+  --wer_threshold 10
+
+#  --wer_threshold 5 \
 #  --max_train_samples 1000
 
 
