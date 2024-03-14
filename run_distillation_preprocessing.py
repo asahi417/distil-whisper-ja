@@ -98,6 +98,10 @@ def main():
         help="Skip WER filtering part."
     )
     parser.add_argument(
+        '--skip_attach_label', action="store_true",
+        help="Skip label attaching process."
+    )
+    parser.add_argument(
         '--max_duration_in_seconds', default=30.0, type=float,
         help="Filter audio files that are longer than `max_duration_in_seconds` seconds"
     )
@@ -134,22 +138,25 @@ def main():
         timestamp_position = 1
 
     def is_wer_in_range(ground_truth, whisper_transcript):
-        norm_ground_truth = normalizer(ground_truth)
-        if (
-            isinstance(whisper_transcript, str)
-            and whisper_transcript.startswith("[")
-            and whisper_transcript.endswith("]")
-        ):
-            whisper_transcript = re.findall(r"\d+", whisper_transcript)
-            whisper_transcript = [int(token) for token in whisper_transcript]
-        if isinstance(whisper_transcript, list):
-            whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
-        if len(norm_ground_truth) > 0 and whisper_transcript is not None:
-            norm_whisper_transcript = normalizer(whisper_transcript)
-            wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
-            return wer < arg.wer_threshold
-        else:
-            # filter automatically since we can't know the WER
+        try:
+            norm_ground_truth = normalizer(ground_truth)
+            if (
+                isinstance(whisper_transcript, str)
+                and whisper_transcript.startswith("[")
+                and whisper_transcript.endswith("]")
+            ):
+                whisper_transcript = re.findall(r"\d+", whisper_transcript)
+                whisper_transcript = [int(token) for token in whisper_transcript]
+            if isinstance(whisper_transcript, list):
+                whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
+            if len(norm_ground_truth) > 0 and whisper_transcript is not None:
+                norm_whisper_transcript = normalizer(whisper_transcript)
+                wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
+                return wer < arg.wer_threshold
+            else:
+                # filter automatically since we can't know the WER
+                return False
+        except Exception:
             return False
 
     raw_datasets = DatasetDict()
@@ -266,17 +273,20 @@ def main():
         batch["labels"] = all_token_ids
         return batch
 
-    raw_datasets_labeled = DatasetDict()
-    map_fn_train = partial(
-        raw_datasets["train"].map,
-        function=prepare_train_dataset,
-        batched=True,
-        batch_size=arg.preprocessing_batch_size,
-    )
-    raw_datasets_labeled["train"] = map_fn_train(
-        num_proc=arg.preprocessing_num_workers, desc="preprocess train dataset"
-    )
-    safe_push(raw_datasets_labeled, repo_name, arg.dataset_config_name)
+    if arg.skip_attach_label:
+        raw_datasets_labeled = raw_datasets
+    else:
+        raw_datasets_labeled = DatasetDict()
+        map_fn_train = partial(
+            raw_datasets["train"].map,
+            function=prepare_train_dataset,
+            batched=True,
+            batch_size=arg.preprocessing_batch_size,
+        )
+        raw_datasets_labeled["train"] = map_fn_train(
+            num_proc=arg.preprocessing_num_workers, desc="preprocess train dataset"
+        )
+        safe_push(raw_datasets_labeled, repo_name, arg.dataset_config_name)
 
     #############################
     # Filtering by audio length #

@@ -24,14 +24,16 @@ def get_cumulative_max_min(
 
 def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny", num_proc: int = 1):
 
+    text_column = "transcription"
     if data == "reazonspeech":
         dataset = load_dataset(
-            f"{os.getcwd()}/reazon_custom_loader.py",
+            f"asahi417/whisper_transcriptions.reazonspeech.{data_type}.wer_10.0",
             data_type,
             split="train",
             trust_remote_code=True,
             num_proc=num_proc,
         )
+        text_column = "text"
     elif data == "ja_asr.jsut-basic5000":
         dataset = load_dataset(
             "asahi417/ja_asr.jsut-basic5000",
@@ -56,8 +58,8 @@ def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny", num_
     data_size = 0
     for value in tqdm(iterator):
         ar = value['audio']['array']
-        transcription_char_size = len(value["transcription"])
-        transcription_token_size = len(TOKENIZER(value["transcription"])["input_ids"])
+        transcription_char_size = len(value[text_column])
+        transcription_token_size = len(TOKENIZER(value[text_column])["input_ids"])
 
         duration, duration_max, duration_min = get_cumulative_max_min(
             duration,
@@ -101,12 +103,12 @@ if __name__ == '__main__':
         stats["common_voice_8_0"] = dataset_statistics("common_voice_8_0")
     if "reazonspeech.tiny" not in stats:
         stats["reazonspeech.tiny"] = dataset_statistics(data_type="tiny")
-    if "reazonspeech.small" not in stats:
-        stats["reazonspeech.small"] = dataset_statistics(data_type="small")
-    if "reazonspeech.medium" not in stats:
-        stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
-    if "reazonspeech.large" in stats:
-        stats["reazonspeech.large"] = dataset_statistics(data_type="large", num_proc=128)
+    # if "reazonspeech.small" not in stats:
+    #     stats["reazonspeech.small"] = dataset_statistics(data_type="small")
+    # if "reazonspeech.medium" not in stats:
+    #     stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
+    # if "reazonspeech.large" in stats:
+    #     stats["reazonspeech.large"] = dataset_statistics(data_type="large", num_proc=128)
     # if "reazonspeech.all" in stats:
     #     stats["reazonspeech.all"] = dataset_statistics(data_type="all")
 

@@ -1,121 +1,4 @@
 {
-  "reazonspeech.tiny": {
-    "audio": {
-      "duration": {
-        "mean": 5.818697374600789,
-        "max": 29.9973125,
-        "min": 0.624
-      },
-      "amplitude_max": {
-        "mean": 0.3089438565082396,
-        "max": 0.999969482421875,
-        "min": 0.049224853515625
-      },
-      "amplitude_min": {
-        "mean": -0.27363983446687723,
-        "max": -0.033294677734375,
-        "min": -1.0
-      },
-      "amplitude_mean": {
-        "mean": -1.335487631830351e-05,
-        "max": 0.013347745348933302,
-        "min": -0.015332619109960954
-      }
-    },
-    "transcription": {
-      "character_length": {
-        "mean": 24.599098252864927,
-        "max": 206,
-        "min": 2
-      },
-      "token_length": {
-        "mean": 26.46158181476611,
-        "max": 175,
-        "min": 5
-      }
-    },
-    "total_data_size": 5323,
-    "total_audio_duration (sec)": 30972.926124999998,
-    "total_transcription_size (character)": 130941
-  },
-  "reazonspeech.small": {
-    "audio": {
-      "duration": {
-        "mean": 5.801437759883687,
-        "max": 29.9973125,
-        "min": 0.5600625
-      },
-      "amplitude_max": {
-        "mean": 0.308449049846097,
-        "max": 4.1092529296875,
-        "min": 0.016815185546875
-      },
-      "amplitude_min": {
-        "mean": -0.27252118176763934,
-        "max": -0.0155029296875,
-        "min": -1.0
-      },
-      "amplitude_mean": {
-        "mean": -1.177177772665925e-05,
-        "max": 0.017637597458823123,
-        "min": -0.022814623167126805
-      }
-    },
-    "transcription": {
-      "character_length": {
-        "mean": 24.494947378600095,
-        "max": 229,
-        "min": 1
-      },
-      "token_length": {
-        "mean": 26.396554225022967,
-        "max": 200,
-        "min": 5
-      }
-    },
-    "total_data_size": 62047,
-    "total_audio_duration (sec)": 359961.8086875031,
-    "total_transcription_size (character)": 1519838
-  },
-  "reazonspeech.medium": {
-    "audio": {
-      "duration": {
-        "mean": 5.813945806939046,
-        "max": 29.9999375,
-        "min": 0.3645625
-      },
-      "amplitude_max": {
-        "mean": 0.30823714126356627,
-        "max": 4.1092529296875,
-        "min": 0.00738525390625
-      },
-      "amplitude_min": {
-        "mean": -0.2721511942556088,
-        "max": -0.006072998046875,
-        "min": -1.319549560546875
-      },
-      "amplitude_mean": {
-        "mean": -1.2371193962592533e-05,
-        "max": 0.055431441421108694,
-        "min": -0.06511519275242081
-      }
-    },
-    "transcription": {
-      "character_length": {
-        "mean": 24.525038117634896,
-        "max": 278,
-        "min": 1
-      },
-      "token_length": {
-        "mean": 26.422982995658465,
-        "max": 244,
-        "min": 5
-      }
-    },
-    "total_data_size": 619136,
-    "total_audio_duration (sec)": 3599623.151125013,
-    "total_transcription_size (character)": 15184334
-  },
   "ja_asr.jsut-basic5000": {
     "audio": {
       "duration": {
@@ -194,43 +77,43 @@
     "total_audio_duration (sec)": 23219.797333333307,
     "total_transcription_size (character)": 103416
   },
-  "reazonspeech.large": {
+  "reazonspeech.tiny": {
     "audio": {
       "duration": {
-        "mean": 5.812650038618198,
-        "max": 29.9999375,
-        "min": 0.2466875
+        "mean": 4.368224794966054,
+        "max": 21.846,
+        "min": 0.62475
       },
       "amplitude_max": {
-        "mean": 0.30822932547419246,
-        "max": 5.5457763671875,
-        "min": 0.002197265625
+        "mean": 0.2978653368367329,
+        "max": 0.875091552734375,
+        "min": 0.052581787109375
       },
       "amplitude_min": {
-        "mean": -0.27216430928440116,
-        "max": -0.0010986328125,
-        "min": -2.41400146484375
+        "mean": -0.26762764702015873,
+        "max": -0.037689208984375,
+        "min": -1.0
       },
       "amplitude_mean": {
-        "mean": -1.2181099458465722e-05,
-        "max": 0.10334665092524094,
-        "min": -0.08783529392968015
+        "mean": -1.568309632903554e-05,
+        "max": 0.006621766625914351,
+        "min": -0.005670445331307011
       }
     },
     "transcription": {
       "character_length": {
-        "mean": 24.51647007985552,
-        "max": 278,
-        "min": 1
+        "mean": 16.2460407239819,
+        "max": 101,
+        "min": 2
       },
       "token_length": {
-        "mean": 26.407878716240003,
-        "max": 260,
+        "mean": 18.77262443438914,
+        "max": 109,
         "min": 5
       }
     },
-    "total_data_size": 3096342,
-    "total_audio_duration (sec)": 17997952.44587515,
-    "total_transcription_size (character)": 75911376
+    "total_data_size": 1768,
+    "total_audio_duration (sec)": 7723.021437499984,
+    "total_transcription_size (character)": 28723
   }
 }

@@ -1,15 +1,23 @@
 DATASET_TYPE="tiny"
+WARMUP_STEPS=10
+
 DATASET_TYPE="small"
+WARMUP_STEPS=25
+
 DATASET_TYPE="medium"
+WARMUP_STEPS=50
+
 DATASET_TYPE="large"
+WARMUP_STEPS=100
 
 #DATASET_TYPE="all"
+#WARMUP_STEPS=500
 
 ##########
 # Config #
 ##########
 #export CUDA_VISIBLE_DEVICES=0
-export WANDB_DISABLED="true"
+#export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
 # need to fix the SSL error by setting following env.
 #export CURL_CA_BUNDLE=""
@@ -61,8 +69,17 @@ python run_distillation_preprocessing.py \
   --dataset_config_name "${DATASET_TYPE}" \
   --wer_threshold ${WER_THRESHOLD} \
   --text_column_name "transcription" \
-  --preprocessing_num_workers 1 \
+  --preprocessing_num_workers 64 \
   --max_label_length 128
+
+#python run_distillation_preprocessing.py \
+#  -d "${HF_ORG}/${HF_DATASET_ALIAS}.wer_10.0" \
+#  --dataset_config_name "${DATASET_TYPE}" \
+#  --wer_threshold ${WER_THRESHOLD} \
+#  --text_column_name "transcription" \
+#  --preprocessing_num_workers 64 \
+#  --max_label_length 128 \
+#  --skip_wer_filtering
 
 ############################
 # Initialize Student Model #
@@ -93,16 +110,16 @@ accelerate launch run_distillation.py \
   --language "ja" \
   --max_label_length 128 \
   --train_split_name "train" \
-  --save_steps 10000 \
-  --warmup_steps 50 \
+  --save_steps 2500 \
+  --warmup_steps "${WARMUP_STEPS}" \
   --learning_rate 0.0001 \
   --lr_scheduler_type "constant_with_warmup" \
-  --logging_steps 500 \
+  --logging_steps 50 \
   --save_total_limit 1 \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 128 \
+  --preprocessing_num_workers 1 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
