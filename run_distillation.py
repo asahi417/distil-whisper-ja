@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import datasets
-import evaluate
+# import evaluate
 import numpy as np
 import torch
 import torch.nn as nn
@@ -58,7 +58,7 @@ from transformers import (
     set_seed,
 )
 from transformers.modeling_outputs import BaseModelOutput
-from transformers.models.whisper.english_normalizer import BasicTextNormalizer, EnglishTextNormalizer
+# from transformers.models.whisper.english_normalizer import BasicTextNormalizer, EnglishTextNormalizer
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -164,30 +164,6 @@ class DataTrainingArguments:
         default=256,
         metadata={"help": "Number of examples per batch provided to the `prepare_dataset` function."},
     )
-    max_train_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of training examples to this value if set."
-            )
-        },
-    )
-    audio_column_name: str = field(
-        default="audio",
-        metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
-    )
-    text_column_name: str = field(
-        default=None,
-        metadata={"help": "The name of the dataset column containing the text data in the training set."},
-    )
-    max_duration_in_seconds: float = field(
-        default=30.0,
-        metadata={"help": "Filter audio files that are longer than `max_duration_in_seconds` seconds"},
-    )
-    min_duration_in_seconds: float = field(
-        default=0.0,
-        metadata={"help": "Filter audio files that are shorter than `min_duration_in_seconds` seconds"},
-    )
     max_label_length: int = field(
         default=128,
         metadata={"help": "Truncate transcriptions that are longer `max_label_length` tokens."},
@@ -198,28 +174,8 @@ class DataTrainingArguments:
             "help": "The name of the training data set split to use (via the datasets library). Defaults to 'train'"
         },
     )
-    wer_threshold: float = field(
-        default=None,
-        metadata={
-            "help": "Filter training data with Whisper transcriptions that have greater than `wer_threshold` "
-            "WER with the normalised transcriptions. This only takes effect if training on pseudo-labels targets."
-            "If `--use_pseudo_labels=False`, then no WER filtering is performed, since we train directly on the text"
-            "transcriptions."
-        },
-    )
-    use_pseudo_labels: bool = field(
-        default=True,
-        metadata={
-            "help": "Whether or not to use pseudo-label transcriptions as the targets. If True, the pseudo-labels "
-            "must be in the dataset column `whisper_transcript` from the previous pseudo-labelling step. This is "
-            "not currently yet configurable."
-        },
-    )
     timestamp_probability: float = field(
         default=0.2, metadata={"help": "Probability for training on timestamped tokens if the data contains it."}
-    )
-    condition_on_prev_probability: float = field(
-        default=0.2, metadata={"help": "Probability for conditioning on the previous text example."}
     )
     return_timestamps: bool = field(
         default=False, metadata={"help": "Whether or not to predict timestamps in the generation step."}
@@ -557,51 +513,13 @@ def main():
             os.makedirs(training_args.output_dir, exist_ok=True)
     accelerator.wait_for_everyone()
 
-    # 6. Load dataset - either streaming or non-streaming (offline)
+    # 7. Load pretrained model, tokenizer, and feature extractor
     feature_extractor = WhisperFeatureExtractor.from_pretrained(
         (model_args.feature_extractor_name if model_args.feature_extractor_name else model_args.model_name_or_path),
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         token=model_args.token,
     )
-    raw_datasets = DatasetDict()
-    set_seed(training_args.seed)
-    dataset = load_dataset(
-        data_args.train_dataset_name,
-        data_args.train_dataset_config_name,
-        split=data_args.train_split_name,
-        trust_remote_code=True,
-        cache_dir=data_args.dataset_cache_dir,
-        token=model_args.token
-    )
-    # resample to specified sampling rate
-    dataset = dataset.cast_column("audio", datasets.features.Audio(feature_extractor.sampling_rate))
-    dataset_features = dataset.features.keys()
-    columns_to_keep = {"audio", "text"}
-
-    if data_args.text_column_name not in dataset_features:
-        raise ValueError(
-            f"Text column name {data_args.text_column_name} not found in dataset"
-            f" 'reazon_custom_loader.py'. "
-        )
-
-    # blanket renaming of all transcription columns to text
-    if data_args.text_column_name != "text":
-        dataset = dataset.rename_column(data_args.text_column_name, "text")
-
-    if data_args.use_pseudo_labels:
-        if "whisper_transcript" not in dataset_features:
-            raise ValueError(
-                f"Pseudo-label column `whisper_transcript` not found in dataset. Ensure"
-                "pseudo-labels are present in the dataset under this column name, or train directly on the text "
-                "labels by setting `--use_pseudo_labels=False` and defining the appropriate `--text_column_name`."
-            )
-        columns_to_keep.add("whisper_transcript")
-    dataset_features = dataset.features.keys()
-    raw_datasets["train"] = dataset.remove_columns(set(dataset_features - columns_to_keep))
-    raw_datasets_train_features = list(raw_datasets["train"].features.keys())
-
-    # 7. Load pretrained model, tokenizer, and feature extractor
     config = WhisperConfig.from_pretrained(
         (model_args.config_name if model_args.config_name else model_args.model_name_or_path),
         cache_dir=model_args.cache_dir,
@@ -656,13 +574,8 @@ def main():
         student_model.freeze_encoder()
         student_model.model.encoder.gradient_checkpointing = False
 
-    # if share_hidden_states:
-    # tie the weights for the student encoder if we're freezing it and it's the same as the teacher
-    #    student_model.model.encoder = teacher_model.model.encoder
-
     if hasattr(teacher_model.generation_config, "is_multilingual") and teacher_model.generation_config.is_multilingual:
         # We need to set the language and task ids for previously multilingual checkpoints
-        is_multilingual = True
         tokenizer.set_prefix_tokens(language=data_args.language, task=data_args.task, predict_timestamps=False)
         student_model.generation_config.update(
             **{
@@ -675,8 +588,6 @@ def main():
             "Setting language token for an English-only checkpoint is not permitted. The language argument should "
             "only be set for multilingual checkpoints."
         )
-    else:
-        is_multilingual = False
 
     # 8. Create a single speech processor - make sure all processes wait until data is saved
     if accelerator.is_main_process:
@@ -689,198 +600,40 @@ def main():
     accelerator.wait_for_everyone()
     processor = WhisperProcessor.from_pretrained(training_args.output_dir)
 
-    # 9. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
-    # so we just need to set the correct target sampling rate.
-    raw_datasets = raw_datasets.cast_column(
-        data_args.audio_column_name,
-        datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
-    )
-
     # 10. Preprocessing the datasets: we need to read the audio files as arrays and tokenize the targets.
-    # 10.1: Define the pre-processing constants
-    max_input_length = int(data_args.max_duration_in_seconds * feature_extractor.sampling_rate)
-    min_input_length = int(data_args.min_duration_in_seconds * feature_extractor.sampling_rate)
-    max_label_length = (
-        data_args.max_label_length if data_args.max_label_length is not None else student_model.config.max_length
+    raw_datasets = DatasetDict()
+    set_seed(training_args.seed)
+    raw_datasets['train'] = load_dataset(
+        data_args.train_dataset_name,
+        data_args.train_dataset_config_name,
+        split=data_args.train_split_name,
+        trust_remote_code=True,
+        cache_dir=data_args.dataset_cache_dir,
+        token=model_args.token
     )
-
     return_timestamps = data_args.return_timestamps if data_args.timestamp_probability > 0 else False
-
-    timestamp_ids = tokenizer.timestamp_ids()
-    timestamp_begin = tokenizer.all_special_ids[-1]
-    timestamp_position = 3 if is_multilingual else 1
-
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
-    decoder_eot_token_id = tokenizer.eos_token_id
-
     dataloader_num_workers = training_args.dataloader_num_workers
 
-    metric = evaluate.load("wer")
-    normalizer = (
-        BasicTextNormalizer() if data_args.language is not None else EnglishTextNormalizer(tokenizer.english_spelling_normalizer)
-    )
-    wer_threshold = data_args.wer_threshold
-    use_pseudo_labels = data_args.use_pseudo_labels
-    train_text_column_name = "whisper_transcript" if use_pseudo_labels else "text"
-
-    # 10.2: filter based on maximum number of training/evaluation samples
-    if training_args.do_train and data_args.max_train_samples is not None:
-        raw_datasets["train"] = raw_datasets["train"].select(list(range(data_args.max_train_samples)))
-
-    # 10.3: filter training data based on WER threshold -> this is KEY to good distillation performance
-    def is_wer_in_range(ground_truth, whisper_transcript):
-        try:
-            norm_ground_truth = normalizer(ground_truth)
-            if (
-                isinstance(whisper_transcript, str)
-                and whisper_transcript.startswith("[")
-                and whisper_transcript.endswith("]")
-            ):
-                whisper_transcript = re.findall(r"\d+", whisper_transcript)
-                whisper_transcript = [int(token) for token in whisper_transcript]
-            if isinstance(whisper_transcript, list):
-                whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
-            if len(norm_ground_truth) > 0 and whisper_transcript is not None:
-                norm_whisper_transcript = normalizer(whisper_transcript)
-                wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
-                return wer < wer_threshold
-            else:
-                # filter automatically since we can't know the WER
-                return False
-        except Exception:
-            return False
-
-    filter_by_wer_threshold = partial(
-        raw_datasets["train"].filter,
-        function=is_wer_in_range,
-        input_columns=["text", "whisper_transcript"],
-    )
-
-    if wer_threshold is not None and use_pseudo_labels:
-        raw_datasets["train"] = filter_by_wer_threshold(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset by wer")
-        while True:
-            try:
-                raw_datasets.push_to_hub(
-                    f"{data_args.train_dataset_name}.wer_{wer_threshold}",
-                    data_args.train_dataset_config_name
-                )
-                break
-            except Exception:
-                time.sleep(60)
-                print("WARNING: PUSH TO REPO FAILED")
-
-
-    # 10.4: pre-process training/evaluation datasets
-    def has_timestamp_tokens(input_str):
-        """
-        Identify whether the input string contains timestamp tokens, of the form <|0.00|>, by searching for
-        pairs of left and right-angle brackets.
-        """
-        return bool(re.search("\<[^\>]*\>", input_str))
-
     def prepare_train_dataset(batch):
-        """
-        Pre-process the raw dataset in a three stage process:
-            1. Convert the audio arrays to log-mel spectrogram inputs
-            2. Possibly filter the timestamp tokens from the token ids (depending on the timestamp probability)
-            3. Possibly add prompt tokens if conditioning on previous text (depending on the conditioning probability)
-        """
-        # process audio input
+        """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
         audio = [sample["array"] for sample in batch["audio"]]
         inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
         batch["input_features"] = inputs.input_features
-        batch["input_length"] = [len(sample) for sample in audio]
-
-        # process text targets - for training these are the Whisper-generated pseudo-labels
-        input_str_batched = batch[train_text_column_name]
-
-        all_token_ids = []
-        all_token_ids_unprompted = []
-        for input_str in input_str_batched:
-            if isinstance(input_str, list):
-                # pseudo-labelled transcriptions have been retained as token ids (`decode_token_ids=False`)
-                token_ids = input_str
-            elif input_str[0].startswith("[") and input_str[0].endswith("]"):
-                token_ids = re.findall(r"\d+", input_str)
-                token_ids = [int(token) for token in token_ids]
-            else:
-                token_ids = None
-
-            if token_ids is not None:
-                # remove the EOT tokens to get the 'true' token length
-                token_ids = [token for token in token_ids if token != decoder_eot_token_id]
-                token_ids = token_ids + [decoder_eot_token_id]
-                # check whether we have timestamps in the PLs and filter if required
-                has_timestamps = len(set(token_ids) & set(timestamp_ids)) > 0
-                if has_timestamps:
-                    # sample from binomial distribution to get probability of training on timestamps
-                    predict_timestamps = bool(np.random.binomial(1, data_args.timestamp_probability))
-                    if not predict_timestamps:
-                        # filter timestamps and insert the <|notimestamps|> task token
-                        token_ids = [token for token in token_ids if token < timestamp_begin]
-                        token_ids.insert(timestamp_position, timestamp_begin)
-            else:
-                # pseudo-labelled transcriptions have been decoded to text (`decode_token_ids=True`)
-                has_timestamps = has_timestamp_tokens(input_str)
-
-                if has_timestamps:
-                    predict_timestamps = bool(np.random.binomial(1, data_args.timestamp_probability))
-                    if not predict_timestamps:
-                        # filter timestamp token ids if not part of the prediction task
-                        input_str = tokenizer._filter_timestamp_ids(input_str)
-                else:
-                    predict_timestamps = False
-
-                tokenizer.set_prefix_tokens(language=data_args.language, task=data_args.task, predict_timestamps=predict_timestamps)
-                token_ids = tokenizer(input_str).input_ids
-
-            all_token_ids_unprompted.append(token_ids)
-            # check whether to condition on previous text - we do this with probability condition_on_prev_probability
-            condition_on_prev = bool(np.random.binomial(1, data_args.condition_on_prev_probability))
-            if condition_on_prev and len(all_token_ids_unprompted) > 1:
-                # prompt ids are the penultimate token ids in the batch
-                prompt_ids = all_token_ids_unprompted[-2]
-                # strip timestamp tokens from prompt
-                prompt_ids = [token for token in prompt_ids if token < timestamp_begin]
-                if len(prompt_ids) > 0:
-                    # remove the standard task tokens and add the special <|startofprev|> token
-                    prompt_ids = [decoder_prev_token_id] + prompt_ids[timestamp_position:-1]
-                if len(prompt_ids + token_ids) < max_label_length:
-                    token_ids = prompt_ids + token_ids
-            all_token_ids.append(token_ids)
-
-        batch["labels"] = all_token_ids
         return batch
-
 
     vectorized_datasets = DatasetDict()
     map_fn_train = partial(
         raw_datasets["train"].map,
         function=prepare_train_dataset,
-        remove_columns=raw_datasets_train_features,
+        remove_columns=["audio", "text", "whisper_transcript"],
         batched=True,
         batch_size=data_args.preprocessing_batch_size,
     )
-    vectorized_datasets["train"] = map_fn_train(num_proc=data_args.preprocessing_num_workers, desc="preprocess train dataset")
-
-    # 10.5: Filter training data with inputs longer than `max_input_length`
-    def is_audio_in_length_range(length):
-        return min_input_length < length < max_input_length
-
-    filter_by_audio_fn = partial(
-        vectorized_datasets.filter, function=is_audio_in_length_range, input_columns=["input_length"]
+    vectorized_datasets["train"] = map_fn_train(
+        num_proc=data_args.preprocessing_num_workers, desc="obtain log-mel feature from audio"
     )
-    vectorized_datasets = filter_by_audio_fn(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset by audio length")
-
-    # 10.6: Filter training data with labels longer than `max_label_length`
-    def is_labels_in_length_range(labels):
-        return 0 < len(labels) <= max_label_length
-
-    filter_by_labels_fn = partial(
-        vectorized_datasets.filter, function=is_labels_in_length_range, input_columns=["labels"]
-    )
-    vectorized_datasets = filter_by_labels_fn(num_proc=data_args.preprocessing_num_workers, desc="filtering train dataset")
 
     # 12. Define Training Schedule
     # Store some constants
@@ -933,6 +686,9 @@ def main():
         num_training_steps=total_train_steps * accelerator.num_processes,
     )
 
+    max_label_length = (
+        data_args.max_label_length if data_args.max_label_length is not None else student_model.config.max_length
+    )
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(
         processor=processor,
         decoder_start_token_id=decoder_start_token_id,
@@ -1142,23 +898,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-def is_wer_in_range(ground_truth, whisper_transcript):
-    norm_ground_truth = normalizer(ground_truth)
-    if (
-        isinstance(whisper_transcript, str)
-        and whisper_transcript.startswith("[")
-        and whisper_transcript.endswith("]")
-    ):
-        whisper_transcript = re.findall(r"\d+", whisper_transcript)
-        whisper_transcript = [int(token) for token in whisper_transcript]
-
-        if isinstance(whisper_transcript, list):
-            whisper_transcript = tokenizer.decode(whisper_transcript, skip_special_tokens=True)
-        if len(norm_ground_truth) > 0 and whisper_transcript is not None:
-            norm_whisper_transcript = normalizer(whisper_transcript)
-            wer = 100 * metric.compute(predictions=[norm_whisper_transcript], references=[norm_ground_truth])
-            return wer < 10
-        else:
-            # filter automatically since we can't know the WER
-            return False

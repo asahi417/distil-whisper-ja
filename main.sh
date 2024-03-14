@@ -1,38 +1,20 @@
 DATASET_TYPE="tiny"
-MAX_STEPS=166
-WARMUP_STEPS=50
-SAVE_STEPS=50
-
 DATASET_TYPE="small"
-MAX_STEPS=1938
-WARMUP_STEPS=500
-SAVE_STEPS=500
-
 DATASET_TYPE="medium"
-MAX_STEPS=19348
-WARMUP_STEPS=500
-SAVE_STEPS=5000
-
 DATASET_TYPE="large"
-MAX_STEPS=96760
-WARMUP_STEPS=2500
-SAVE_STEPS=50000
 
 #DATASET_TYPE="all"
-#MAX_STEPS=
-#WARMUP_STEPS=
-#SAVE_STEPS=
 
 ##########
 # Config #
 ##########
 #export CUDA_VISIBLE_DEVICES=0
-#export WANDB_DISABLED="true"
+export WANDB_DISABLED="true"
 export TOKENIZERS_PARALLELISM="false"
-# need to fix the SSL error
-export CURL_CA_BUNDLE=""
-export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
-
+# need to fix the SSL error by setting following env.
+#export CURL_CA_BUNDLE=""
+#export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+WER_THRESHOLD=10.0
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
@@ -61,7 +43,6 @@ accelerate launch run_pseudo_labelling.py \
   --logging_steps 50000 \
   --max_label_length 128 \
   --language "ja" \
-  --task "transcribe" \
   --return_timestamps \
   --attn_type "flash_attn" \
   --generation_num_beams 1 \
@@ -72,7 +53,16 @@ accelerate launch run_pseudo_labelling.py \
   --push_to_hub
 rm -rf "${HF_DATASET_ALIAS}"
 
-
+#########################
+# Preprocessing Dataset #
+#########################
+python run_distillation_preprocessing.py \
+  -d "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --wer_threshold ${WER_THRESHOLD} \
+  --text_column_name "transcription" \
+  --preprocessing_num_workers 1 \
+  --max_label_length 128
 
 ############################
 # Initialize Student Model #
@@ -90,7 +80,6 @@ python create_student_model.py \
   --decoder_layers 2 \
   --save_dir "./${HF_MODEL_ALIAS}-init"
 
-
 ##########################
 # Training Student Model #
 ##########################
@@ -99,19 +88,17 @@ cp ../run_distillation.py ./
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \
-  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}" \
   --train_dataset_config_name "${DATASET_TYPE}" \
   --language "ja" \
-  --task "transcribe" \
+  --max_label_length 128 \
   --train_split_name "train" \
-  --text_column_name "transcription" \
-  --save_steps ${SAVE_STEPS} \
-  --warmup_steps ${WARMUP_STEPS} \
+  --save_steps 10000 \
+  --warmup_steps 50 \
   --learning_rate 0.0001 \
   --lr_scheduler_type "constant_with_warmup" \
   --logging_steps 500 \
   --save_total_limit 1 \
-  --max_steps "${MAX_STEPS}" \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
@@ -124,12 +111,7 @@ accelerate launch run_distillation.py \
   --freeze_encoder \
   --push_to_hub \
   --do_train \
-  --wer_threshold 10
-
-#  --wer_threshold 5 \
-#  --max_train_samples 1000
-
-
+  --num_train_epochs 8
 
 ##########################
 # Evaluate Student Model #
@@ -148,7 +130,6 @@ do
     --preprocessing_num_workers 128 \
     --generation_max_length 256 \
     --language "ja" \
-    --task "transcribe" \
     --wandb_project "wandb.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
     --attn_type "flash_attn"
 done
@@ -179,7 +160,6 @@ do
     --preprocessing_num_workers 128 \
     --generation_max_length 256 \
     --language "ja" \
-    --task "transcribe" \
     --wandb_project "wandb.${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \
     --attn_type "flash_attn"
 done
