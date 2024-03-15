@@ -98,16 +98,16 @@ if __name__ == '__main__':
     else:
         stats = {}
 
-    if "ja_asr.jsut-basic5000" not in stats:
-        stats["ja_asr.jsut-basic5000"] = dataset_statistics("ja_asr.jsut-basic5000")
-    if "common_voice_8_0" not in stats:
-        stats["common_voice_8_0"] = dataset_statistics("common_voice_8_0")
-    if "reazonspeech.tiny" not in stats:
-        stats["reazonspeech.tiny"] = dataset_statistics(data_type="tiny")
-    if "reazonspeech.small" not in stats:
-        stats["reazonspeech.small"] = dataset_statistics(data_type="small")
-    if "reazonspeech.medium" not in stats:
-        stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
+    # if "ja_asr.jsut-basic5000" not in stats:
+    #     stats["ja_asr.jsut-basic5000"] = dataset_statistics("ja_asr.jsut-basic5000")
+    # if "common_voice_8_0" not in stats:
+    #     stats["common_voice_8_0"] = dataset_statistics("common_voice_8_0")
+    # if "reazonspeech.tiny" not in stats:
+    #     stats["reazonspeech.tiny"] = dataset_statistics(data_type="tiny")
+    # if "reazonspeech.small" not in stats:
+    #     stats["reazonspeech.small"] = dataset_statistics(data_type="small")
+    # if "reazonspeech.medium" not in stats:
+    #     stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
     if "reazonspeech.large" in stats:
         stats["reazonspeech.large"] = dataset_statistics(data_type="large", num_proc=128)
     # if "reazonspeech.all" in stats:
