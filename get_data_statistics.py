@@ -108,9 +108,9 @@ if __name__ == '__main__':
     #     stats["reazonspeech.small"] = dataset_statistics(data_type="small")
     # if "reazonspeech.medium" not in stats:
     #     stats["reazonspeech.medium"] = dataset_statistics(data_type="medium")
-    if "reazonspeech.large" in stats:
+    if "reazonspeech.large" not in stats:
         stats["reazonspeech.large"] = dataset_statistics(data_type="large", num_proc=128)
-    # if "reazonspeech.all" in stats:
+    # if "reazonspeech.all" not in stats:
     #     stats["reazonspeech.all"] = dataset_statistics(data_type="all")
 
     with open("data_statistics.json", "w") as f:
