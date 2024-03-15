@@ -350,7 +350,7 @@ def main():
     )
     vectorized_datasets = DatasetDict()
     vectorized_datasets["train"] = map_fn_train(num_proc=arg.preprocessing_num_workers, desc="log-mel feature")
-    repo_name = f"{arg.dataset_name}.wer_{arg.wer_threshold}.vectorized"
+    repo_name = f"{repo_name}.vectorized"
     safe_push(vectorized_datasets, repo_name, arg.dataset_config_name)
 
 

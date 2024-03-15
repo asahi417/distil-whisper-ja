@@ -84,8 +84,10 @@ python run_distillation_preprocessing.py \
   --max_label_length 128 \
   --skip_wer_filtering \
   --skip_attach_label \
-  --keep_in_memory \
   --skip_length_filtering
+
+  --keep_in_memory \
+
 
 ############################
 # Initialize Student Model #
@@ -111,7 +113,7 @@ cp ../run_distillation.py ./
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \
-  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}" \
+  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}.vectorized" \
   --train_dataset_config_name "${DATASET_TYPE}" \
   --language "ja" \
   --max_label_length 128 \
@@ -125,9 +127,6 @@ accelerate launch run_distillation.py \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 8 \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 128 \
-  --preprocessing_batch_size 512 \
-  --preprocessing_chunk_ratio 0.05 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
