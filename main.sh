@@ -22,8 +22,8 @@ export TOKENIZERS_PARALLELISM="false"
 #export WANDB_DISABLED="true"
 
 # need to fix the SSL error by setting following env.
-#export CURL_CA_BUNDLE=""
-#export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+export CURL_CA_BUNDLE=""
+export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
 WER_THRESHOLD=10.0
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
@@ -80,9 +80,11 @@ python run_distillation_preprocessing.py \
   --wer_threshold ${WER_THRESHOLD} \
   --text_column_name "transcription" \
   --preprocessing_num_workers 1 \
+  --preprocessing_batch_size 1 \
   --max_label_length 128 \
   --skip_wer_filtering \
   --skip_attach_label \
+  --keep_in_memory \
   --skip_length_filtering
 
 ############################
@@ -121,9 +123,9 @@ accelerate launch run_distillation.py \
   --logging_steps 50 \
   --save_total_limit 1 \
   --per_device_train_batch_size 32 \
-  --gradient_accumulation_steps 1 \
+  --gradient_accumulation_steps 8 \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
+  --preprocessing_num_workers 128 \
   --preprocessing_batch_size 512 \
   --preprocessing_chunk_ratio 0.05 \
   --dtype "bfloat16" \
