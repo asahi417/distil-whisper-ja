@@ -30,7 +30,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import datasets
-# import evaluate
 import numpy as np
 import torch
 import torch.nn as nn
@@ -38,6 +37,7 @@ import transformers
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from datasets import (
+    concatenate_datasets,
     DatasetDict,
     IterableDataset,
     load_dataset,
@@ -163,6 +163,10 @@ class DataTrainingArguments:
     preprocessing_batch_size: Optional[int] = field(
         default=256,
         metadata={"help": "Number of examples per batch provided to the `prepare_dataset` function."},
+    )
+    preprocessing_chunk_ratio: Optional[float] = field(
+        default=0.1,
+        metadata={"help": "Ratio of examples per chunk provided to the `prepare_dataset` function."},
     )
     max_label_length: int = field(
         default=128,
@@ -601,9 +605,10 @@ def main():
     processor = WhisperProcessor.from_pretrained(training_args.output_dir)
 
     # 10. Preprocessing the datasets: we need to read the audio files as arrays and tokenize the targets.
-    raw_datasets = DatasetDict()
     set_seed(training_args.seed)
-    raw_datasets['train'] = load_dataset(
+
+    raw_datasets = DatasetDict()
+    raw_datasets["train"] = load_dataset(
         data_args.train_dataset_name,
         data_args.train_dataset_config_name,
         split=data_args.train_split_name,
@@ -623,17 +628,28 @@ def main():
         batch["input_features"] = inputs.input_features
         return batch
 
+    # when the dataset size increased, due to the cache generated at map, it raises `No space left on device` error.
+    # https://discuss.huggingface.co/t/datasets-map-tokenization-throws-oserror-no-space-left-on-device/10907/5
+    preprocessing_chunk_ratio = data_args.preprocessing_chunk_ratio
+    assert 0 < preprocessing_chunk_ratio <= 1, preprocessing_chunk_ratio
+    size_per_chunk = int(raw_datasets.num_rows["train"] * preprocessing_chunk_ratio)
+    total_chunk_size = int(raw_datasets.num_rows["train"] / size_per_chunk)
+    dataset_chunks = []
+    for i in range(total_chunk_size):
+        logger.info(f"Log-mel feature pre-processing: {i + 1}/{total_chunk_size}")
+        indices = list(range(i * size_per_chunk, min((i + 1) * size_per_chunk, raw_datasets.num_rows["train"])))
+        map_fn_train = partial(
+            raw_datasets["train"].select(indices).map,
+            function=prepare_train_dataset,
+            remove_columns=["audio", "text", "whisper_transcript"],
+            batched=True,
+            batch_size=data_args.preprocessing_batch_size,
+        )
+        dataset_chunks.append(
+            map_fn_train(num_proc=data_args.preprocessing_num_workers, desc="log-mel feature")
+        )
     vectorized_datasets = DatasetDict()
-    map_fn_train = partial(
-        raw_datasets["train"].map,
-        function=prepare_train_dataset,
-        remove_columns=["audio", "text", "whisper_transcript"],
-        batched=True,
-        batch_size=data_args.preprocessing_batch_size,
-    )
-    vectorized_datasets["train"] = map_fn_train(
-        num_proc=data_args.preprocessing_num_workers, desc="obtain log-mel feature from audio"
-    )
+    vectorized_datasets["train"] = concatenate_datasets(dataset_chunks)
 
     # 12. Define Training Schedule
     # Store some constants

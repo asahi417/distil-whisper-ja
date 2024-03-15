@@ -193,5 +193,44 @@
     "total_data_size": 20900,
     "total_audio_duration (sec)": 90142.26193750002,
     "total_transcription_size (character)": 338149
+  },
+  "reazonspeech.large": {
+    "audio": {
+      "duration": {
+        "mean": 4.326634442274575,
+        "max": 29.9851875,
+        "min": 0.2466875
+      },
+      "amplitude_max": {
+        "mean": 0.29846034564000934,
+        "max": 0.999969482421875,
+        "min": 0.002197265625
+      },
+      "amplitude_min": {
+        "mean": -0.2633612341158663,
+        "max": -0.0010986328125,
+        "min": -1.0
+      },
+      "amplitude_mean": {
+        "mean": -1.528136229062347e-05,
+        "max": 0.037014078762145956,
+        "min": -0.08783529392968015
+      }
+    },
+    "transcription": {
+      "character_length": {
+        "mean": 16.167906658752706,
+        "max": 140,
+        "min": 1
+      },
+      "token_length": {
+        "mean": 18.765798272672964,
+        "max": 165,
+        "min": 5
+      }
+    },
+    "total_data_size": 1042883,
+    "total_audio_duration (sec)": 4512173.507062635,
+    "total_transcription_size (character)": 16861235
   }
 }
