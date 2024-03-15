@@ -24,6 +24,7 @@ def get_cumulative_max_min(
 
 def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny", num_proc: int = 1):
 
+    print(data, data_type)
     text_column = "transcription"
     if data == "reazonspeech":
         dataset = load_dataset(
