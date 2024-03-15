@@ -74,14 +74,16 @@ python run_distillation_preprocessing.py \
   --preprocessing_num_workers 64 \
   --max_label_length 128
 
-#python run_distillation_preprocessing.py \
-#  -d "${HF_ORG}/${HF_DATASET_ALIAS}.wer_10.0" \
-#  --dataset_config_name "${DATASET_TYPE}" \
-#  --wer_threshold ${WER_THRESHOLD} \
-#  --text_column_name "transcription" \
-#  --preprocessing_num_workers 64 \
-#  --max_label_length 128 \
-#  --skip_wer_filtering
+python run_distillation_preprocessing.py \
+  -d "${HF_ORG}/${HF_DATASET_ALIAS}.wer_10.0" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --wer_threshold ${WER_THRESHOLD} \
+  --text_column_name "transcription" \
+  --preprocessing_num_workers 1 \
+  --max_label_length 128 \
+  --skip_wer_filtering \
+  --skip_attach_label \
+  --skip_length_filtering
 
 ############################
 # Initialize Student Model #
@@ -122,7 +124,7 @@ accelerate launch run_distillation.py \
   --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
   --preprocessing_num_workers 1 \
-  --preprocessing_batch_size 1024 \
+  --preprocessing_batch_size 512 \
   --preprocessing_chunk_ratio 0.05 \
   --dtype "bfloat16" \
   --output_dir "./" \

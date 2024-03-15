@@ -102,6 +102,10 @@ def main():
         help="Skip label attaching process."
     )
     parser.add_argument(
+        '--skip_length_filtering', action="store_true",
+        help="Skip label attaching process."
+    )
+    parser.add_argument(
         '--max_duration_in_seconds', default=30.0, type=float,
         help="Filter audio files that are longer than `max_duration_in_seconds` seconds"
     )
@@ -109,6 +113,11 @@ def main():
         '--min_duration_in_seconds', default=0.0, type=float,
         help="Filter audio files that are shorter than `min_duration_in_seconds` seconds"
     )
+    parser.add_argument(
+        '--keep_in_memory', action="store_true",
+        help="Avoid caching during map operation."
+    )
+
     arg = parser.parse_args()
 
     dataset = load_dataset(arg.dataset_name, arg.dataset_config_name, split=arg.split, trust_remote_code=True)
@@ -298,24 +307,51 @@ def main():
     def is_audio_in_length_range(length):
         return min_input_length < length < max_input_length
 
-    filter_by_audio_fn = partial(
-        raw_datasets_labeled.filter, function=is_audio_in_length_range, input_columns=["input_length"]
-    )
-    raw_datasets_labeled_filtered = filter_by_audio_fn(
-        num_proc=arg.preprocessing_num_workers, desc="filtering train dataset by audio length"
-    )
-
-    # Filter training data with labels longer than `max_label_length`
     def is_labels_in_length_range(labels):
         return 0 < len(labels) <= arg.max_label_length
 
-    filter_by_labels_fn = partial(
-        raw_datasets_labeled_filtered.filter, function=is_labels_in_length_range, input_columns=["labels"]
+    if arg.skip_length_filtering:
+        raw_datasets_labeled_filtered = raw_datasets_labeled
+    else:
+        filter_by_audio_fn = partial(
+            raw_datasets_labeled.filter, function=is_audio_in_length_range, input_columns=["input_length"]
+        )
+        raw_datasets_labeled_filtered = filter_by_audio_fn(
+            num_proc=arg.preprocessing_num_workers, desc="filtering train dataset by audio length"
+        )
+
+        # Filter training data with labels longer than `max_label_length`
+        filter_by_labels_fn = partial(
+            raw_datasets_labeled_filtered.filter, function=is_labels_in_length_range, input_columns=["labels"]
+        )
+        raw_datasets_labeled_filtered = filter_by_labels_fn(
+            num_proc=arg.preprocessing_num_workers, desc="filtering train dataset"
+        )
+        safe_push(raw_datasets_labeled_filtered, repo_name, arg.dataset_config_name)
+
+    ################################
+    # Generate Log-MEL Spectrogram #
+    ################################
+    # Filter training data with inputs longer than `max_input_length`
+    def prepare_train_dataset(batch):
+        """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
+        audio = [sample["array"] for sample in batch["audio"]]
+        inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
+        batch["input_features"] = inputs.input_features
+        return batch
+
+    map_fn_train = partial(
+        raw_datasets_labeled_filtered["train"].map,
+        function=prepare_train_dataset,
+        keep_in_memory=arg.keep_in_memory,
+        remove_columns=["audio", "text", "whisper_transcript"],
+        batched=True,
+        batch_size=arg.preprocessing_batch_size,
     )
-    raw_datasets_labeled_filtered = filter_by_labels_fn(
-        num_proc=arg.preprocessing_num_workers, desc="filtering train dataset"
-    )
-    safe_push(raw_datasets_labeled_filtered, repo_name, arg.dataset_config_name)
+    vectorized_datasets = DatasetDict()
+    vectorized_datasets["train"] = map_fn_train(num_proc=arg.preprocessing_num_workers, desc="log-mel feature")
+    repo_name = f"{arg.dataset_name}.wer_{arg.wer_threshold}.vectorized"
+    safe_push(vectorized_datasets, repo_name, arg.dataset_config_name)
 
 
 if __name__ == "__main__":
