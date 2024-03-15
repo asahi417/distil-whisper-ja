@@ -641,6 +641,7 @@ def main():
         map_fn_train = partial(
             raw_datasets["train"].select(indices).map,
             function=prepare_train_dataset,
+            keep_in_memory=True,
             remove_columns=["audio", "text", "whisper_transcript"],
             batched=True,
             batch_size=data_args.preprocessing_batch_size,

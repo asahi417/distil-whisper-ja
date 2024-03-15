@@ -16,9 +16,11 @@ WARMUP_STEPS=100
 ##########
 # Config #
 ##########
+export TOKENIZERS_PARALLELISM="false"
+#export TOKENIZERS_PARALLELISM="true"
 #export CUDA_VISIBLE_DEVICES=0
 #export WANDB_DISABLED="true"
-export TOKENIZERS_PARALLELISM="false"
+
 # need to fix the SSL error by setting following env.
 #export CURL_CA_BUNDLE=""
 #export REQUESTS_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
@@ -119,7 +121,9 @@ accelerate launch run_distillation.py \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 128 \
+  --preprocessing_num_workers 1 \
+  --preprocessing_batch_size 1024 \
+  --preprocessing_chunk_ratio 0.05 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
