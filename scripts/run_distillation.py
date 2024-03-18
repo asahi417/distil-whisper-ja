@@ -620,7 +620,8 @@ def main():
 
     def prepare_train_dataset(batch, rank):
         """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % torch.cuda.device_count())
+        # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % torch.cuda.device_count())
+        torch.cuda.set_device(rank % torch.cuda.device_count())
         audio = [sample["array"] for sample in batch["audio"]]
         inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
         batch["input_features"] = inputs.input_features
