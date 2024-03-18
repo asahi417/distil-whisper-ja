@@ -24,7 +24,7 @@ import re
 import shutil
 import sys
 import time
-from multiprocessing import set_start_method
+# from multiprocessing import set_start_method
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -73,7 +73,7 @@ check_min_version("4.34.0.dev0")
 require_version("datasets>=2.14.6", "To fix: `pip install --upgrade datasets`")
 
 logger = get_logger(__name__)
-set_start_method("spawn")
+# set_start_method("spawn")
 
 
 @dataclass
@@ -202,6 +202,15 @@ class DataTrainingArguments:
     wandb_project: str = field(
         default="distil-whisper",
         metadata={"help": "The name of the wandb project."},
+    )
+    skip_logmel_transformation: bool = field(
+        default=False, metadata={
+            "help": "Whether or not to transform log-mel transformation. No need to transform if the dataset contains"
+                    "log mel feature, otherwise it's required."
+        }
+    )
+    logmel_dataset_name: Optional[str] = field(
+        default=None, metadata={"help": "To upload the dataset with the log-mel feature."}
     )
 
 
@@ -604,44 +613,48 @@ def main():
     processor = WhisperProcessor.from_pretrained(training_args.output_dir)
 
     # 10. Preprocessing the datasets: we need to read the audio files as arrays and tokenize the targets.
-    raw_datasets = DatasetDict()
     set_seed(training_args.seed)
-    raw_datasets["train"] = load_dataset(
-        data_args.train_dataset_name,
-        data_args.train_dataset_config_name,
-        split=data_args.train_split_name,
-        trust_remote_code=True,
-        cache_dir=data_args.dataset_cache_dir,
-        token=model_args.token
+    training_datasets = DatasetDict(
+        {
+            "train": load_dataset(
+                data_args.train_dataset_name,
+                data_args.train_dataset_config_name,
+                split=data_args.train_split_name,
+                trust_remote_code=True,
+                cache_dir=data_args.dataset_cache_dir,
+                token=model_args.token,
+                num_proc=data_args.preprocessing_num_workers
+            )
+        }
     )
     return_timestamps = data_args.return_timestamps if data_args.timestamp_probability > 0 else False
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
 
-    def prepare_train_dataset(batch):
-        """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
-        # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % torch.cuda.device_count())
-        # torch.cuda.set_device(rank % torch.cuda.device_count())
-        audio = [sample["array"] for sample in batch["audio"]]
-        inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
-        batch["input_features"] = inputs.input_features
-        return batch
+    if not data_args.skip_logmel_transformation:
+        def prepare_train_dataset(batch):
+            """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
+            audio = [sample["array"] for sample in batch["audio"]]
+            inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
+            batch["input_features"] = inputs.input_features
+            return batch
 
-    vectorized_datasets = DatasetDict()
-    map_fn_train = partial(
-        raw_datasets["train"].map,
-        keep_in_memory=True,
-        function=prepare_train_dataset,
-        remove_columns=["audio", "text", "whisper_transcript"],
-        batched=True,
-        batch_size=data_args.preprocessing_batch_size,
-    )
-
-    vectorized_datasets["train"] = map_fn_train(
-        num_proc=data_args.preprocessing_num_workers,
-        desc="obtain log-mel feature from audio",
-        # with_rank=True
-    )
+        map_fn_train = partial(
+            training_datasets["train"].map,
+            keep_in_memory=True,
+            function=prepare_train_dataset,
+            remove_columns=["audio", "text", "whisper_transcript"],
+            batched=True,
+            batch_size=data_args.preprocessing_batch_size,
+        )
+        training_datasets = DatasetDict({
+            "train": map_fn_train(
+                num_proc=data_args.preprocessing_num_workers,
+                desc="obtain log-mel feature from audio"
+            )
+        })
+        if data_args.logmel_dataset_name:
+            training_datasets.push_to_hub(data_args.logmel_dataset_name)
 
     # 12. Define Training Schedule
     # Store some constants
@@ -651,7 +664,7 @@ def main():
 
     if training_args.max_steps < 0:
         num_epochs = int(training_args.num_train_epochs)
-        steps_per_epoch = len(vectorized_datasets["train"]) // (train_batch_size * gradient_accumulation_steps)
+        steps_per_epoch = len(training_datasets["train"]) // (train_batch_size * gradient_accumulation_steps)
         total_train_steps = steps_per_epoch * num_epochs
     elif training_args.max_steps > 0:
         logger.info("max_steps is given, it will override any value given in num_train_epochs")
@@ -809,7 +822,7 @@ def main():
         steps_trained_progress_bar.update(cur_step)
 
         for epoch in range(0, epochs_trained):
-            vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(training_args.seed)
+            training_datasets["train"] = training_datasets["train"].shuffle(training_args.seed)
 
         if training_args.max_steps < 0:
             # we know exactly the number of steps per epoch, so can skip through the required number of batches
@@ -819,14 +832,14 @@ def main():
             # So we just shuffle the dataset one extra time and start from a fresh epoch
             # This is "good enough" for our purposes but not fully correct
             resume_step = None
-            vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(training_args.seed)
+            training_datasets["train"] = training_datasets["train"].shuffle(training_args.seed)
     else:
         resume_step = None
 
     for epoch in range(epochs_trained, num_epochs):
-        vectorized_datasets["train"] = vectorized_datasets["train"].shuffle(training_args.seed)
+        training_datasets["train"] = training_datasets["train"].shuffle(training_args.seed)
         train_dataloader = DataLoader(
-            vectorized_datasets["train"],
+            training_datasets["train"],
             collate_fn=data_collator,
             batch_size=per_device_train_batch_size,
             num_workers=training_args.dataloader_num_workers,

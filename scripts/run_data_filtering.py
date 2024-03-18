@@ -119,7 +119,13 @@ def main():
 
     arg = parser.parse_args()
 
-    dataset = load_dataset(arg.dataset_name, arg.dataset_config_name, split=arg.split, trust_remote_code=True)
+    dataset = load_dataset(
+        arg.dataset_name,
+        arg.dataset_config_name,
+        split=arg.split,
+        num_proc=arg.preprocessing_num_workers,
+        trust_remote_code=True,
+    )
     feature_extractor = WhisperFeatureExtractor.from_pretrained(arg.model)
 
     #################
