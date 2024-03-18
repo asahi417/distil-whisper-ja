@@ -1,5 +1,5 @@
 """custom HF data loader to load a large audio dataset from local
-- run `reazon_downloader.py` first to download the desired data type (["tiny", "small", "medium", "large", "all"]) locally.
+- run `reazonspeech_manual_downloader.py` first to download the desired data type (["tiny", "small", "medium", "large", "all"]) locally.
 - credit: https://huggingface.co/datasets/reazon-research/reazonspeech/blob/main/reazonspeech.py
 
 Example:

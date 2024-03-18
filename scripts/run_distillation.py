@@ -25,6 +25,7 @@ import shutil
 import sys
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -152,6 +153,14 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False,
         metadata={"help": "Overwrite the cached training and evaluation sets"},
+    )
+    preprocessing_num_workers: Optional[int] = field(
+        default=None,
+        metadata={"help": "The number of processes to use for the preprocessing if using non-streaming mode."},
+    )
+    preprocessing_batch_size: Optional[int] = field(
+        default=256,
+        metadata={"help": "Number of examples per batch provided to the `prepare_dataset` function."},
     )
     max_label_length: int = field(
         default=128,
@@ -590,9 +599,9 @@ def main():
     processor = WhisperProcessor.from_pretrained(training_args.output_dir)
 
     # 10. Preprocessing the datasets: we need to read the audio files as arrays and tokenize the targets.
+    raw_datasets = DatasetDict()
     set_seed(training_args.seed)
-    vectorized_datasets = DatasetDict()
-    vectorized_datasets["train"] = load_dataset(
+    raw_datasets["train"] = load_dataset(
         data_args.train_dataset_name,
         data_args.train_dataset_config_name,
         split=data_args.train_split_name,
@@ -603,7 +612,25 @@ def main():
     return_timestamps = data_args.return_timestamps if data_args.timestamp_probability > 0 else False
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
-    dataloader_num_workers = training_args.dataloader_num_workers
+
+    def prepare_train_dataset(batch):
+        """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
+        audio = [sample["array"] for sample in batch["audio"]]
+        inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
+        batch["input_features"] = inputs.input_features
+        return batch
+
+    vectorized_datasets = DatasetDict()
+    map_fn_train = partial(
+        raw_datasets["train"].map,
+        function=prepare_train_dataset,
+        remove_columns=["audio", "text", "whisper_transcript"],
+        batched=True,
+        batch_size=data_args.preprocessing_batch_size,
+    )
+    vectorized_datasets["train"] = map_fn_train(
+        num_proc=data_args.preprocessing_num_workers, desc="obtain log-mel feature from audio"
+    )
 
     # 12. Define Training Schedule
     # Store some constants
@@ -791,7 +818,7 @@ def main():
             vectorized_datasets["train"],
             collate_fn=data_collator,
             batch_size=per_device_train_batch_size,
-            num_workers=dataloader_num_workers,
+            num_workers=training_args.dataloader_num_workers,
             pin_memory=training_args.dataloader_pin_memory,
         )
         train_dataloader = accelerator.prepare(train_dataloader)

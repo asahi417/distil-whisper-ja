@@ -57,6 +57,9 @@ from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
 
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
+
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")
 
@@ -196,19 +199,6 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "Data size to be use"},
     )
-    preprocessing_only: bool = field(
-        default=False,
-        metadata={
-            "help": (
-                "Whether to only do data preprocessing and skip training. This is"
-                " especially useful when data preprocessing errors out in distributed"
-                " training due to timeout. In this case, one should run the"
-                " preprocessing in a non-distributed setup with"
-                " `preprocessing_only=True` so that the cached datasets can"
-                " consequently be loaded in distributed training"
-            )
-        },
-    )
     dataset_split_name: str = field(
         default="train+validation+test",
         metadata={
@@ -257,18 +247,6 @@ class DataTrainingArguments:
     private_dataset: bool = field(
         default=False,
         metadata={"help": "Whether or not to create a private dataset for the pseudo-labelled data."},
-    )
-    keep_in_memory: bool = field(
-        default=False,
-        metadata={"help": ""},
-    )
-    preprocessed_dataset_repo_name: Optional[str] = field(
-        default=None,
-        metadata={"help": ""},
-    )
-    skip_vectorization: bool = field(
-        default=False,
-        metadata={"help": ""},
     )
 
 
@@ -485,22 +463,21 @@ def main():
             num_proc=data_args.preprocessing_num_workers,
         )
 
-    if not data_args.skip_vectorization:
-        if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
-            raise ValueError(
-                f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
-                f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
-                " the correct audio column - one of"
-                f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
-            )
+    if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
+        raise ValueError(
+            f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
+            f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
+            " the correct audio column - one of"
+            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
+        )
 
-        if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
-            raise ValueError(
-                f"--text_column_name {data_args.text_column_name} not found in dataset"
-                f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
-                " correct text column - one of"
-                f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
-            )
+    if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
+        raise ValueError(
+            f"--text_column_name {data_args.text_column_name} not found in dataset"
+            f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
+            " correct text column - one of"
+            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
+        )
 
     # 7. Load pretrained model, tokenizer, and feature extractor
     config = WhisperConfig.from_pretrained(
@@ -579,58 +556,42 @@ def main():
     normalizer = (
         BasicTextNormalizer() if data_args.language is not None else EnglishTextNormalizer(tokenizer.english_spelling_normalizer)
     )
-    if not data_args.skip_vectorization:
-        # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
-        # so we just need to set the correct target sampling rate.
-        raw_datasets = raw_datasets.cast_column(
-            data_args.audio_column_name,
-            datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
-        )
+    # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
+    # so we just need to set the correct target sampling rate.
+    raw_datasets = raw_datasets.cast_column(
+        data_args.audio_column_name,
+        datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
+    )
 
-        # 7. Preprocessing the datasets.
-        # We need to read the audio files as arrays and tokenize the targets.
+    # 7. Preprocessing the datasets.
+    # We need to read the audio files as arrays and tokenize the targets.
 
-        if data_args.max_samples_per_split is not None:
-            for split in data_splits:
-                raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
+    if data_args.max_samples_per_split is not None:
+        for split in data_splits:
+            raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
 
-        def prepare_dataset(batch):
-            # process audio
-            sample = batch[audio_column_name]
-            inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-            # process audio length
-            batch[model_input_name] = inputs.get(model_input_name)[0]
+    def prepare_dataset(batch):
+        # process audio
+        sample = batch[audio_column_name]
+        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+        # process audio length
+        batch[model_input_name] = inputs.get(model_input_name)[0]
 
-            # process targets
-            input_str = batch[text_column_name]
-            batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+        # process targets
+        input_str = batch[text_column_name]
+        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
 
-            # record the id of the sample as token ids
-            batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
-            return batch
+        # record the id of the sample as token ids
+        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
+        return batch
 
-        raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-        vectorized_datasets = raw_datasets.map(
-            prepare_dataset,
-            remove_columns=raw_datasets_features,
-            num_proc=data_args.preprocessing_num_workers,
-            keep_in_memory=data_args.keep_in_memory,
-            desc="preprocess dataset",
-        )
-        if data_args.preprocessed_dataset_repo_name is not None:
-            safe_push(vectorized_datasets, data_args.preprocessed_dataset_repo_name, data_args.dataset_config_name)
-
-        # for large datasets it is advised to run the preprocessing on a
-        # single machine first with `args.preprocessing_only` since there will mostly likely
-        # be a timeout when running the script in distributed mode.
-        # In a second step `args.preprocessing_only` can then be set to `False` to load the
-        # cached dataset
-        if data_args.preprocessing_only:
-            cache = {k: v.cache_files for k, v in vectorized_datasets.items()}
-            logger.info(f"Data preprocessing finished. Files cached at {cache}.")
-            return
-    else:
-        vectorized_datasets = raw_datasets
+    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+    vectorized_datasets = raw_datasets.map(
+        prepare_dataset,
+        remove_columns=raw_datasets_features,
+        num_proc=data_args.preprocessing_num_workers,
+        desc="preprocess dataset",
+    )
 
     # Handle the repository creation
     output_dir = training_args.output_dir
