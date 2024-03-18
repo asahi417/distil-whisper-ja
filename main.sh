@@ -85,7 +85,7 @@ python create_student_model.py \
 # Training Student Model #
 ##########################
 rm -rf run_distillation.py
-cp ../run_distillation.py ./
+cp ../scripts/run_distillation.py ./
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \

@@ -73,6 +73,7 @@ check_min_version("4.34.0.dev0")
 require_version("datasets>=2.14.6", "To fix: `pip install --upgrade datasets`")
 
 logger = get_logger(__name__)
+set_start_method("spawn")
 
 
 @dataclass
@@ -633,7 +634,7 @@ def main():
         batched=True,
         batch_size=data_args.preprocessing_batch_size,
     )
-    set_start_method("spawn")
+
     vectorized_datasets["train"] = map_fn_train(
         num_proc=data_args.preprocessing_num_workers,
         desc="obtain log-mel feature from audio",
