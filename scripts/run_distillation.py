@@ -654,7 +654,12 @@ def main():
             )
         })
         if data_args.logmel_dataset_name:
-            training_datasets.push_to_hub(data_args.logmel_dataset_name)
+            try:
+                training_datasets.push_to_hub(
+                    data_args.logmel_dataset_name, config_name=data_args.train_dataset_config_name
+                )
+            except Exception:
+                logger.exception(f"Failed to push dataset to {data_args.logmel_dataset_name}.")
 
     # 12. Define Training Schedule
     # Store some constants

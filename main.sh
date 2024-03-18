@@ -103,7 +103,7 @@ accelerate launch run_distillation.py \
   --per_device_train_batch_size 32 \
   --gradient_accumulation_steps 1 \
   --preprocessing_num_workers 32 \
-  --dataloader_num_workers 128 \
+  --dataloader_num_workers 1 \
   --dtype "bfloat16" \
   --output_dir "./" \
   --wandb_project "wandb.${HF_MODEL_ALIAS}" \
