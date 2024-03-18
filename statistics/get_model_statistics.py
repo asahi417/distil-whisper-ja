@@ -1,7 +1,10 @@
+import os
 from math import prod
 import pandas as pd
 from transformers import WhisperForConditionalGeneration
 
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
 
 MODELS = [
     "openai/whisper-tiny",
@@ -10,6 +13,7 @@ MODELS = [
     "openai/whisper-large-v3",
     "asahi417/distil-whisper-large-v3-ja-reazonspeech-tiny",
 ]
+
 
 def pretty(num): return "{:,}".format(num)
 
@@ -38,4 +42,4 @@ if __name__ == '__main__':
     parameter_report = []
     for m in MODELS:
         parameter_report.append(show_parameter(m))
-    pd.DataFrame(parameter_report).to_csv("model_statistics.csv")
+    pd.DataFrame(parameter_report).to_csv("statistics/model_statistics.csv")

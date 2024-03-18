@@ -21,11 +21,14 @@ teacher-student distillation.
 import argparse
 import copy
 import logging
+import os
 
 import numpy as np
 import torch
 from transformers import GenerationConfig, WhisperForConditionalGeneration, WhisperProcessor
 
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,10 @@ from glob import glob
 import datasets
 from datasets.tasks import AutomaticSpeechRecognition
 
-_SIZE = ["tiny", "small", "medium", "large", "all"]
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
+
+DATA_SIZE = ["tiny", "small", "medium", "large", "all"]
 
 
 class ReazonSpeechConfig(datasets.BuilderConfig):
@@ -31,9 +34,9 @@ class ReazonSpeechConfig(datasets.BuilderConfig):
 
 
 class ReazonSpeech(datasets.GeneratorBasedBuilder):
-    BUILDER_CONFIGS = [ReazonSpeechConfig(name=name) for name in _SIZE]
+    BUILDER_CONFIGS = [ReazonSpeechConfig(name=name) for name in DATA_SIZE]
     DEFAULT_CONFIG_NAME = "tiny"
-    DEFAULT_WRITER_BATCH_SIZE = 256
+    DEFAULT_WRITER_BATCHDATA_SIZE = 256
 
     def _info(self):
         return datasets.DatasetInfo(

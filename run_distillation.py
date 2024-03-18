@@ -59,6 +59,9 @@ from transformers.modeling_outputs import BaseModelOutput
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
+
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")
 
@@ -240,7 +243,7 @@ class DataCollatorSpeechSeq2SeqWithPadding:
               sequence if provided).
             * :obj:`'max_length'`: Pad to a maximum length specified with the argument :obj:`max_length` or to the
               maximum acceptable input length for the model if that argument is not provided.
-            * :obj:`False` or :obj:`'do_not_pad'` (default): No padding (i.e., can output a batch with sequences of
+            * :obj:`False` or :obj:`'do_not_pad'` (default): No padding (i.e., can statistics a batch with sequences of
               different lengths).
         target_padding (:obj:`bool`, :obj:`str` or :class:`~transformers.tokenization_utils_base.PaddingStrategy`, `optional`, defaults to :obj:`True`):
             Select a strategy to pad the returned target sequences (according to the model's padding side and padding index).
@@ -321,12 +324,12 @@ def log_metric(
 
 
 def get_layers_to_supervise(student_layers: int, teacher_layers: int) -> Dict:
-    """Helper function to map the student layer i to the teacher layer j whose output we'd like them to emulate. Used
+    """Helper function to map the student layer i to the teacher layer j whose statistics we'd like them to emulate. Used
     for MSE loss terms in distillation (hidden-states and activations). Student layers are paired with teacher layers
     in equal increments, e.g. for a 12-layer model distilled to a 3-layer model, student layer 0 emulates teacher layer
     3 (such that it behaves like the first 4 teacher layers), student layer 1 emulates teacher layer 7, and student layer
     2 emulates teacher layer 11. This mapping is summarised by the dictionary: {0: 3, 1: 7, 2: 11}, which is precisely
-    the output of this function for the arguments (student_layers=3, teacher_layers=12)."""
+    the statistics of this function for the arguments (student_layers=3, teacher_layers=12)."""
     layer_intervals = np.linspace(teacher_layers // student_layers - 1, teacher_layers - 1, student_layers, dtype=int)
     layer_intervals[-1] = teacher_layers - 1
     layer_map = {}

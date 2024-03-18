@@ -1,5 +1,6 @@
 import argparse
 import re
+import os
 import time
 from functools import partial
 import datasets
@@ -8,6 +9,9 @@ import numpy as np
 from datasets import DatasetDict, load_dataset
 from transformers import WhisperTokenizerFast, WhisperFeatureExtractor, AddedToken, WhisperForConditionalGeneration
 from transformers.models.whisper.english_normalizer import BasicTextNormalizer, EnglishTextNormalizer
+
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
 
 
 def safe_push(dataset_to_push, repo_name, config_name):

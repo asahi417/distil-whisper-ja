@@ -1,9 +1,12 @@
 import json
-import os.path
+import os
 
 from datasets import load_dataset
 from tqdm import tqdm
 from transformers import WhisperTokenizer
+
+# https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
+os.environ['CURL_CA_BUNDLE'] = ''
 
 TOKENIZER = WhisperTokenizer.from_pretrained("openai/whisper-large-v3", language="japanese")
 NUM_PROC = 128
@@ -92,8 +95,8 @@ def dataset_statistics(data: str = "reazonspeech", data_type: str = "tiny", num_
 
 
 if __name__ == '__main__':
-    if os.path.exists("data_statistics.json"):
-        with open("data_statistics.json") as f:
+    if os.path.exists("statistics/data_statistics.json"):
+        with open("statistics/data_statistics.json") as f:
             stats = json.load(f)
     else:
         stats = {}
@@ -113,7 +116,7 @@ if __name__ == '__main__':
     # if "reazonspeech.all" not in stats:
     #     stats["reazonspeech.all"] = dataset_statistics(data_type="all")
 
-    with open("data_statistics.json", "w") as f:
+    with open("statistics/data_statistics.json", "w") as f:
         json.dump(stats, f)
 
 
