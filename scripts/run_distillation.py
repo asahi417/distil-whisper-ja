@@ -618,7 +618,7 @@ def main():
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
 
-    def prepare_train_dataset(batch, rank):
+    def prepare_train_dataset(batch):
         """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
         # os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % torch.cuda.device_count())
         # torch.cuda.set_device(rank % torch.cuda.device_count())
