@@ -16,17 +16,13 @@ WARMUP_STEPS=500
 ##########
 # Config #
 ##########
-export TOKENIZERS_PARALLELISM="false"
-#export TOKENIZERS_PARALLELISM="true"
-#export CUDA_VISIBLE_DEVICES=0
-#export WANDB_DISABLED="true"
-
 WER_THRESHOLD=10.0
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 huggingface-cli login
+export TOKENIZERS_PARALLELISM="false"  # disable the warning log
 
 ####################
 # Download Dataset #
@@ -126,7 +122,7 @@ cd ../
 export WANDB_DISABLED="true"
 for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
 do
-  accelerate launch run_short_form_eval.py \
+  accelerate launch scripts/run_short_form_eval.py \
     --model_name_or_path "${HF_ORG}/${HF_MODEL_ALIAS}" \
     --dataset_name "${EVAL_DATASET}" \
     --dataset_split_name "test" \
@@ -142,24 +138,6 @@ do
     --attn_type "flash_attn"
 done
 
-
-export CUDA_VISIBLE_DEVICES=
-export WANDB_DISABLED="true"
-accelerate launch run_short_form_eval.py \
-  --model_name_or_path "distil-whisper-large-v3-ja-reazonspeech-medium" \
-  --dataset_name "asahi417/ja_asr.jsut-basic5000" \
-  --dataset_split_name "test" \
-  --text_column_name "transcription" \
-  --output_dir "eval/tmp" \
-  --per_device_eval_batch_size 512 \
-  --dtype "bfloat16" \
-  --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
-  --generation_max_length 256 \
-  --language "ja" \
-  --wandb_project "wandb.tmp" \
-  --attn_type "flash_attn"
-
 #####################################
 # (Optional) Evaluate Teacher Model #
 #####################################
@@ -172,6 +150,7 @@ BATCH_SIZE=64
 WHISPER_MODEL="openai/whisper-large-v3"
 BATCH_SIZE=32
 
+export WANDB_DISABLED="true"
 for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
 do
   accelerate launch run_short_form_eval.py \
