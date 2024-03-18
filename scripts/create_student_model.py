@@ -30,6 +30,10 @@ from transformers import GenerationConfig, WhisperForConditionalGeneration, Whis
 # https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
 os.environ['CURL_CA_BUNDLE'] = ''
 
+# disable warning message
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
+
 logger = logging.getLogger(__name__)
 
 

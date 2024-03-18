@@ -10,6 +10,10 @@ from tqdm import tqdm
 
 # https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
 os.environ['CURL_CA_BUNDLE'] = ''
+
+# disable warning message
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
 BASE_URL = "https://reazonspeech.s3.abci.ai/"
 DATASET = {
     "tiny": {"tsv": 'v2-tsv/tiny.tsv', "audio": "v2/{:03x}.tar", "nfiles": 1},

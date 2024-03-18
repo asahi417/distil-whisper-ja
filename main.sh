@@ -22,7 +22,6 @@ HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 huggingface-cli login
-export TOKENIZERS_PARALLELISM="false"  # disable the warning log
 
 ####################
 # Download Dataset #
@@ -168,3 +167,12 @@ do
     --wandb_project "wandb.${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \
     --attn_type "flash_attn"
 done
+
+
+####################
+# Trouble Shooting #
+####################
+# SSL Error
+export REQUESTS_CA_BUNDLE='/etc/ssl/certs/ca-certificates.crt'
+export CURL_CA_BUNDLE=''
+

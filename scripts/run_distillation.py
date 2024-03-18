@@ -24,6 +24,7 @@ import re
 import shutil
 import sys
 import time
+from multiprocessing import set_start_method
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -62,6 +63,9 @@ from transformers.utils.versions import require_version
 
 # https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
 os.environ['CURL_CA_BUNDLE'] = ''
+
+# disable warning message
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")
@@ -613,8 +617,9 @@ def main():
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
 
-    def prepare_train_dataset(batch):
+    def prepare_train_dataset(batch, rank):
         """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % torch.cuda.device_count())
         audio = [sample["array"] for sample in batch["audio"]]
         inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
         batch["input_features"] = inputs.input_features
@@ -628,8 +633,11 @@ def main():
         batched=True,
         batch_size=data_args.preprocessing_batch_size,
     )
+    set_start_method("spawn")
     vectorized_datasets["train"] = map_fn_train(
-        num_proc=data_args.preprocessing_num_workers, desc="obtain log-mel feature from audio"
+        num_proc=data_args.preprocessing_num_workers,
+        desc="obtain log-mel feature from audio",
+        with_rank=True
     )
 
     # 12. Define Training Schedule

@@ -13,6 +13,9 @@ from transformers.models.whisper.english_normalizer import BasicTextNormalizer, 
 # https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
 os.environ['CURL_CA_BUNDLE'] = ''
 
+# disable warning message
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
 
 def safe_push(dataset_to_push, repo_name, config_name):
     while True:
