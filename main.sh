@@ -10,8 +10,8 @@ WARMUP_STEPS=50
 DATASET_TYPE="large"
 WARMUP_STEPS=100
 
-#DATASET_TYPE="all"
-#WARMUP_STEPS=500
+DATASET_TYPE="all"
+WARMUP_STEPS=500
 
 ##########
 # Config #
@@ -39,6 +39,7 @@ python reazon_downloader.py -t "${DATASET_TYPE}" -p 100
 ###################
 # Generate Labels #
 ###################
+# Option 1: Single step
 accelerate launch run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/reazon_custom_loader.py" \
@@ -49,7 +50,7 @@ accelerate launch run_pseudo_labelling.py \
   --per_device_eval_batch_size 16 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 128 \
+  --preprocessing_num_workers 1 \
   --logging_steps 50000 \
   --max_label_length 128 \
   --language "ja" \
@@ -61,7 +62,54 @@ accelerate launch run_pseudo_labelling.py \
   --wandb_project "wandb.${HF_DATASET_ALIAS}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
   --push_to_hub
-rm -rf "${HF_DATASET_ALIAS}"
+
+# Option 2: Two steps (preprocessing -> inference)
+accelerate launch run_pseudo_labelling.py \
+  --model_name_or_path "${TEACHER_MODEL}" \
+  --dataset_name "${PWD}/reazon_custom_loader.py" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_split_name "train" \
+  --text_column_name "transcription" \
+  --id_column_name "name" \
+  --per_device_eval_batch_size 16 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
+  --logging_steps 50000 \
+  --max_label_length 128 \
+  --language "ja" \
+  --return_timestamps \
+  --attn_type "flash_attn" \
+  --generation_num_beams 1 \
+  --decode_token_ids False \
+  --output_dir "${HF_DATASET_ALIAS}" \
+  --wandb_project "wandb.${HF_DATASET_ALIAS}" \
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --preprocessing_only \
+  --dataset_repo_name "${HF_ORG}/${HF_DATASET_ALIAS}-vectorized"
+
+accelerate launch run_pseudo_labelling.py \
+  --model_name_or_path "${TEACHER_MODEL}" \
+  --dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}-vectorized" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_split_name "train" \
+  --text_column_name "transcription" \
+  --id_column_name "name" \
+  --per_device_eval_batch_size 16 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
+  --logging_steps 50000 \
+  --max_label_length 128 \
+  --language "ja" \
+  --return_timestamps \
+  --attn_type "flash_attn" \
+  --generation_num_beams 1 \
+  --decode_token_ids False \
+  --output_dir "${HF_DATASET_ALIAS}" \
+  --wandb_project "wandb.${HF_DATASET_ALIAS}" \
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --skip_vectorization
 
 #########################
 # Preprocessing Dataset #
@@ -86,7 +134,7 @@ python run_distillation_preprocessing.py \
   --skip_attach_label \
   --skip_length_filtering
 
-  --keep_in_memory \
+#  --keep_in_memory
 
 
 ############################
@@ -125,7 +173,7 @@ accelerate launch run_distillation.py \
   --logging_steps 50 \
   --save_total_limit 1 \
   --per_device_train_batch_size 32 \
-  --gradient_accumulation_steps 8 \
+  --gradient_accumulation_steps 1 \
   --dataloader_num_workers 1 \
   --dtype "bfloat16" \
   --output_dir "./" \
@@ -136,10 +184,12 @@ accelerate launch run_distillation.py \
   --push_to_hub \
   --do_train \
   --num_train_epochs 8
+cd ../
 
 ##########################
 # Evaluate Student Model #
 ##########################
+export WANDB_DISABLED="true"
 for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
 do
   accelerate launch run_short_form_eval.py \
@@ -148,15 +198,33 @@ do
     --dataset_split_name "test" \
     --text_column_name "transcription" \
     --output_dir "eval/${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
-    --per_device_eval_batch_size 256 \
+    --per_device_eval_batch_size 512 \
     --dtype "bfloat16" \
-    --dataloader_num_workers 64 \
-    --preprocessing_num_workers 128 \
+    --dataloader_num_workers 1 \
+    --preprocessing_num_workers 1 \
     --generation_max_length 256 \
     --language "ja" \
     --wandb_project "wandb.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
     --attn_type "flash_attn"
 done
+
+
+export CUDA_VISIBLE_DEVICES=
+export WANDB_DISABLED="true"
+accelerate launch run_short_form_eval.py \
+  --model_name_or_path "distil-whisper-large-v3-ja-reazonspeech-medium" \
+  --dataset_name "asahi417/ja_asr.jsut-basic5000" \
+  --dataset_split_name "test" \
+  --text_column_name "transcription" \
+  --output_dir "eval/tmp" \
+  --per_device_eval_batch_size 512 \
+  --dtype "bfloat16" \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
+  --generation_max_length 256 \
+  --language "ja" \
+  --wandb_project "wandb.tmp" \
+  --attn_type "flash_attn"
 
 #####################################
 # (Optional) Evaluate Teacher Model #

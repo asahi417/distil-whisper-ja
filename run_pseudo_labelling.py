@@ -65,6 +65,16 @@ require_version("datasets>=2.14.6", "To fix: `pip install --upgrade datasets`")
 logger = get_logger(__name__)
 
 
+def safe_push(dataset_to_push, repo_name, config_name):
+    while True:
+        try:
+            dataset_to_push.push_to_hub(repo_name, config_name=config_name)
+            break
+        except Exception:
+            print(f"FAILED: push_to_hub on {repo_name} failed. wait 60 sec and retry soon...")
+            time.sleep(60)
+
+
 @dataclass
 class ModelArguments:
     """
@@ -247,6 +257,18 @@ class DataTrainingArguments:
     private_dataset: bool = field(
         default=False,
         metadata={"help": "Whether or not to create a private dataset for the pseudo-labelled data."},
+    )
+    keep_in_memory: bool = field(
+        default=False,
+        metadata={"help": ""},
+    )
+    preprocessed_dataset_repo_name: Optional[str] = field(
+        default=None,
+        metadata={"help": ""},
+    )
+    skip_vectorization: bool = field(
+        default=False,
+        metadata={"help": ""},
     )
 
 
@@ -463,21 +485,22 @@ def main():
             num_proc=data_args.preprocessing_num_workers,
         )
 
-    if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
-        raise ValueError(
-            f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
-            f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
-            " the correct audio column - one of"
-            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
-        )
+    if not data_args.skip_vectorization:
+        if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
+            raise ValueError(
+                f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
+                f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
+                " the correct audio column - one of"
+                f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
+            )
 
-    if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
-        raise ValueError(
-            f"--text_column_name {data_args.text_column_name} not found in dataset"
-            f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
-            " correct text column - one of"
-            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
-        )
+        if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
+            raise ValueError(
+                f"--text_column_name {data_args.text_column_name} not found in dataset"
+                f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
+                " correct text column - one of"
+                f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
+            )
 
     # 7. Load pretrained model, tokenizer, and feature extractor
     config = WhisperConfig.from_pretrained(
@@ -545,15 +568,6 @@ def main():
             "only be set for multilingual checkpoints."
         )
 
-    # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
-    # so we just need to set the correct target sampling rate.
-    raw_datasets = raw_datasets.cast_column(
-        data_args.audio_column_name,
-        datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
-    )
-
-    # 7. Preprocessing the datasets.
-    # We need to read the audio files as arrays and tokenize the targets.
     max_label_length = (
         data_args.max_label_length if data_args.max_label_length is not None else model.config.max_length
     )
@@ -565,43 +579,58 @@ def main():
     normalizer = (
         BasicTextNormalizer() if data_args.language is not None else EnglishTextNormalizer(tokenizer.english_spelling_normalizer)
     )
+    if not data_args.skip_vectorization:
+        # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
+        # so we just need to set the correct target sampling rate.
+        raw_datasets = raw_datasets.cast_column(
+            data_args.audio_column_name,
+            datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
+        )
 
-    if data_args.max_samples_per_split is not None:
-        for split in data_splits:
-            raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
+        # 7. Preprocessing the datasets.
+        # We need to read the audio files as arrays and tokenize the targets.
 
-    def prepare_dataset(batch):
-        # process audio
-        sample = batch[audio_column_name]
-        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-        # process audio length
-        batch[model_input_name] = inputs.get(model_input_name)[0]
+        if data_args.max_samples_per_split is not None:
+            for split in data_splits:
+                raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
 
-        # process targets
-        input_str = batch[text_column_name]
-        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+        def prepare_dataset(batch):
+            # process audio
+            sample = batch[audio_column_name]
+            inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+            # process audio length
+            batch[model_input_name] = inputs.get(model_input_name)[0]
 
-        # record the id of the sample as token ids
-        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
-        return batch
+            # process targets
+            input_str = batch[text_column_name]
+            batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
 
-    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-    vectorized_datasets = raw_datasets.map(
-        prepare_dataset,
-        remove_columns=raw_datasets_features,
-        num_proc=data_args.preprocessing_num_workers,
-        desc="preprocess dataset",
-    )
+            # record the id of the sample as token ids
+            batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
+            return batch
 
-    # for large datasets it is advised to run the preprocessing on a
-    # single machine first with `args.preprocessing_only` since there will mostly likely
-    # be a timeout when running the script in distributed mode.
-    # In a second step `args.preprocessing_only` can then be set to `False` to load the
-    # cached dataset
-    if data_args.preprocessing_only:
-        cache = {k: v.cache_files for k, v in vectorized_datasets.items()}
-        logger.info(f"Data preprocessing finished. Files cached at {cache}.")
-        return
+        raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+        vectorized_datasets = raw_datasets.map(
+            prepare_dataset,
+            remove_columns=raw_datasets_features,
+            num_proc=data_args.preprocessing_num_workers,
+            keep_in_memory=data_args.keep_in_memory,
+            desc="preprocess dataset",
+        )
+        if data_args.preprocessed_dataset_repo_name is not None:
+            safe_push(vectorized_datasets, data_args.preprocessed_dataset_repo_name, data_args.dataset_config_name)
+
+        # for large datasets it is advised to run the preprocessing on a
+        # single machine first with `args.preprocessing_only` since there will mostly likely
+        # be a timeout when running the script in distributed mode.
+        # In a second step `args.preprocessing_only` can then be set to `False` to load the
+        # cached dataset
+        if data_args.preprocessing_only:
+            cache = {k: v.cache_files for k, v in vectorized_datasets.items()}
+            logger.info(f"Data preprocessing finished. Files cached at {cache}.")
+            return
+    else:
+        vectorized_datasets = raw_datasets
 
     # Handle the repository creation
     output_dir = training_args.output_dir
@@ -821,7 +850,7 @@ def main():
     if accelerator.is_main_process:
         raw_datasets.save_to_disk(output_dir, num_proc=data_args.preprocessing_num_workers)
         if training_args.push_to_hub:
-            raw_datasets.push_to_hub(repo_name, config_name=data_args.dataset_config_name)
+            safe_push(raw_datasets, repo_name, data_args.dataset_config_name)
     accelerator.end_training()
 
 
