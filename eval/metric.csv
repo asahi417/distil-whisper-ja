@@ -1,0 +1,17 @@
+,model,data,wer
+9,distil-whisper-large-v3-ja-reazonspeech-large,common_voice_8_0,59.2683470890029
+14,distil-whisper-large-v3-ja-reazonspeech-medium,common_voice_8_0,64.37653357126923
+10,distil-whisper-large-v3-ja-reazonspeech-small,common_voice_8_0,85.09926388579076
+1,distil-whisper-large-v3-ja-reazonspeech-tiny,common_voice_8_0,99.95538701762213
+2,whisper-large-v3,common_voice_8_0,55.40932411331697
+12,whisper-medium,common_voice_8_0,63.64041936203435
+6,whisper-small,common_voice_8_0,74.21369618559001
+7,whisper-tiny,common_voice_8_0,93.77648895828686
+4,distil-whisper-large-v3-ja-reazonspeech-large,jsut-basic5000,64.36
+8,distil-whisper-large-v3-ja-reazonspeech-medium,jsut-basic5000,72.02
+13,distil-whisper-large-v3-ja-reazonspeech-small,jsut-basic5000,94.17999999999999
+15,distil-whisper-large-v3-ja-reazonspeech-tiny,jsut-basic5000,100.0
+11,whisper-large-v3,jsut-basic5000,59.34
+3,whisper-medium,jsut-basic5000,69.52000000000001
+5,whisper-small,jsut-basic5000,82.02000000000001
+0,whisper-tiny,jsut-basic5000,97.72

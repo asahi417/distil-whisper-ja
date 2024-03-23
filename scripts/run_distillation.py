@@ -24,7 +24,6 @@ import re
 import shutil
 import sys
 import time
-# from multiprocessing import set_start_method
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -73,7 +72,6 @@ check_min_version("4.34.0.dev0")
 require_version("datasets>=2.14.6", "To fix: `pip install --upgrade datasets`")
 
 logger = get_logger(__name__)
-# set_start_method("spawn")
 
 
 @dataclass

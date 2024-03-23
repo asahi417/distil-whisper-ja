@@ -17,7 +17,7 @@ dataset = load_dataset(
 """
 import os
 from glob import glob
-
+import tarfile
 import datasets
 from datasets.tasks import AutomaticSpeechRecognition
 
@@ -80,8 +80,12 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
                 filename = filename.lstrip("./")
                 if filename not in meta:  # skip audio without transcription
                     continue
-                yield filename, {
-                    "name": filename,
-                    "audio": {"path": os.path.join(audio_files[i], filename), "bytes": file.read()},
-                    "transcription": meta[filename],
-                }
+                try:
+                    yield filename, {
+                        "name": filename,
+                        "audio": {"path": os.path.join(audio_files[i], filename), "bytes": file.read()},
+                        "transcription": meta[filename],
+                    }
+                except tarfile.ReadError:
+                    print(f"skip {filename}")
+                    continue
