@@ -81,11 +81,12 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
                 if filename not in meta:  # skip audio without transcription
                     continue
                 try:
-                    yield filename, {
-                        "name": filename,
-                        "audio": {"path": os.path.join(audio_files[i], filename), "bytes": file.read()},
-                        "transcription": meta[filename],
-                    }
+                    data = file.read()
                 except tarfile.ReadError:
                     print(f"skip {filename}")
                     continue
+                yield filename, {
+                    "name": filename,
+                    "audio": {"path": os.path.join(audio_files[i], filename), "bytes": data},
+                    "transcription": meta[filename],
+                }
