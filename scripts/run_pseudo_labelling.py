@@ -143,7 +143,6 @@ class ModelArguments:
             )
         },
     )
-    dataset_dir_suffix: Optional[str] = field(default=None)
     attn_type: Optional[str] = field(
         default=None,
         metadata={
@@ -175,6 +174,7 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "Path to cache directory for saving and loading datasets"},
     )
+    dataset_dir_suffix: Optional[str] = field(default=None)
     overwrite_cache: bool = field(
         default=False,
         metadata={"help": "Overwrite the cached training and evaluation sets"},
