@@ -161,10 +161,10 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing if using non-streaming mode."},
     )
-    preprocessing_batch_size: Optional[int] = field(
-        default=256,
-        metadata={"help": "Number of examples per batch provided to the `prepare_dataset` function."},
-    )
+    # preprocessing_batch_size: Optional[int] = field(
+    #     default=256,
+    #     metadata={"help": "Number of examples per batch provided to the `prepare_dataset` function."},
+    # )
     max_label_length: int = field(
         default=128,
         metadata={"help": "Truncate transcriptions that are longer `max_label_length` tokens."},
@@ -201,15 +201,15 @@ class DataTrainingArguments:
         default="distil-whisper",
         metadata={"help": "The name of the wandb project."},
     )
-    skip_logmel_transformation: bool = field(
-        default=False, metadata={
-            "help": "Whether or not to transform log-mel transformation. No need to transform if the dataset contains"
-                    "log mel feature, otherwise it's required."
-        }
-    )
-    logmel_dataset_name: Optional[str] = field(
-        default=None, metadata={"help": "To upload the dataset with the log-mel feature."}
-    )
+    # skip_logmel_transformation: bool = field(
+    #     default=False, metadata={
+    #         "help": "Whether or not to transform log-mel transformation. No need to transform if the dataset contains"
+    #                 "log mel feature, otherwise it's required."
+    #     }
+    # )
+    # logmel_dataset_name: Optional[str] = field(
+    #     default=None, metadata={"help": "To upload the dataset with the log-mel feature."}
+    # )
 
 
 @dataclass
@@ -629,35 +629,35 @@ def main():
     decoder_start_token_id = student_model.config.decoder_start_token_id  # <|startoftranscript|>
     decoder_prev_token_id = tokenizer.all_special_ids[-3]  # <|startofprev|>
 
-    if not data_args.skip_logmel_transformation:
-        def prepare_train_dataset(batch):
-            """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
-            audio = [sample["array"] for sample in batch["audio"]]
-            inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
-            batch["input_features"] = inputs.input_features
-            return batch
-
-        map_fn_train = partial(
-            training_datasets["train"].map,
-            keep_in_memory=True,
-            function=prepare_train_dataset,
-            remove_columns=["audio", "text", "whisper_transcript"],
-            batched=True,
-            batch_size=data_args.preprocessing_batch_size,
-        )
-        training_datasets = DatasetDict({
-            "train": map_fn_train(
-                num_proc=data_args.preprocessing_num_workers,
-                desc="obtain log-mel feature from audio"
-            )
-        })
-        if data_args.logmel_dataset_name:
-            try:
-                training_datasets.push_to_hub(
-                    data_args.logmel_dataset_name, config_name=data_args.train_dataset_config_name
-                )
-            except Exception:
-                logger.exception(f"Failed to push dataset to {data_args.logmel_dataset_name}.")
+    # if not data_args.skip_logmel_transformation:
+    #     def prepare_train_dataset(batch):
+    #         """Pre-process the raw dataset: Convert the audio arrays to log-mel spectrogram inputs"""
+    #         audio = [sample["array"] for sample in batch["audio"]]
+    #         inputs = feature_extractor(audio, sampling_rate=feature_extractor.sampling_rate)
+    #         batch["input_features"] = inputs.input_features
+    #         return batch
+    #
+    #     map_fn_train = partial(
+    #         training_datasets["train"].map,
+    #         keep_in_memory=True,
+    #         function=prepare_train_dataset,
+    #         remove_columns=["audio", "text", "whisper_transcript"],
+    #         batched=True,
+    #         batch_size=data_args.preprocessing_batch_size,
+    #     )
+    #     training_datasets = DatasetDict({
+    #         "train": map_fn_train(
+    #             num_proc=data_args.preprocessing_num_workers,
+    #             desc="obtain log-mel feature from audio"
+    #         )
+    #     })
+    #     if data_args.logmel_dataset_name:
+    #         try:
+    #             training_datasets.push_to_hub(
+    #                 data_args.logmel_dataset_name, config_name=data_args.train_dataset_config_name
+    #             )
+    #         except Exception:
+    #             logger.exception(f"Failed to push dataset to {data_args.logmel_dataset_name}.")
 
     # 12. Define Training Schedule
     # Store some constants

@@ -56,12 +56,11 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub
 
-
 #####################
 # Filtering Dataset #
 #####################
 python scripts/run_data_filtering.py \
-  -d "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  -d "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --dataset_config_name "${DATASET_TYPE}" \
   --wer_threshold ${WER_THRESHOLD} \
   --text_column_name "transcription" \

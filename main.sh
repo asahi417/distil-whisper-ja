@@ -84,71 +84,6 @@ python create_student_model.py \
 ##########################
 rm -rf run_distillation.py
 cp ../scripts/run_distillation.py ./
-
-# Single Step: Log-Mel feature and distillation in a single process
-accelerate launch run_distillation.py \
-  --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
-  --teacher_model_name_or_path "${TEACHER_MODEL}" \
-  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}" \
-  --train_dataset_config_name "${DATASET_TYPE}" \
-  --language "ja" \
-  --max_label_length 128 \
-  --train_split_name "train" \
-  --save_steps 2500 \
-  --warmup_steps "${WARMUP_STEPS}" \
-  --learning_rate 0.0001 \
-  --lr_scheduler_type "constant_with_warmup" \
-  --logging_steps 50 \
-  --save_total_limit 1 \
-  --per_device_train_batch_size 32 \
-  --gradient_accumulation_steps 1 \
-  --preprocessing_num_workers 32 \
-  --dataloader_num_workers 1 \
-  --dtype "bfloat16" \
-  --output_dir "./" \
-  --wandb_project "wandb.${HF_MODEL_ALIAS}" \
-  --gradient_checkpointing \
-  --freeze_encoder \
-  --push_to_hub \
-  --do_train \
-  --overwrite_output_dir \
-  --num_train_epochs 8
-cd ../
-
-
-# Two Steps: First, generating Log-Mel feature and save it on HF. Second, distillation where loading the Log-Mel
-# feature from HF.
-# - Step 1
-accelerate launch run_distillation.py \
-  --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
-  --teacher_model_name_or_path "${TEACHER_MODEL}" \
-  --train_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}" \
-  --train_dataset_config_name "${DATASET_TYPE}" \
-  --language "ja" \
-  --max_label_length 128 \
-  --train_split_name "train" \
-  --save_steps 2500 \
-  --warmup_steps "${WARMUP_STEPS}" \
-  --learning_rate 0.0001 \
-  --lr_scheduler_type "constant_with_warmup" \
-  --logging_steps 50 \
-  --save_total_limit 1 \
-  --per_device_train_batch_size 32 \
-  --gradient_accumulation_steps 1 \
-  --preprocessing_num_workers 32 \
-  --dataloader_num_workers 1 \
-  --dtype "bfloat16" \
-  --output_dir "./" \
-  --wandb_project "wandb.${HF_MODEL_ALIAS}" \
-  --gradient_checkpointing \
-  --freeze_encoder \
-  --push_to_hub \
-  --do_train \
-  --overwrite_output_dir \
-  --logmel_dataset_name "${HF_ORG}/${HF_DATASET_ALIAS}.wer_${WER_THRESHOLD}.vectorized" \
-  --num_train_epochs 8
-
-# - Step 2:
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \
@@ -175,7 +110,6 @@ accelerate launch run_distillation.py \
   --push_to_hub \
   --do_train \
   --overwrite_output_dir \
-  --skip_logmel_transformation \
   --num_train_epochs 8
 
 ##########################
