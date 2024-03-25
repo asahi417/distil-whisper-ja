@@ -71,7 +71,9 @@ if __name__ == '__main__':
         files = files[arg.start_que:arg.end_que]
     if arg.health_check:
         print("check tar files")
-        broken_files = get_broken_files(files)
+        broken_files = get_broken_files(
+            [f"{target_dir}/{arg.target}.{os.path.basename(i)}" for i in files]
+        )
         print(f"{len(broken_files)} missing/broken tar file")
         for i in broken_files:
             if os.path.exists(i):
