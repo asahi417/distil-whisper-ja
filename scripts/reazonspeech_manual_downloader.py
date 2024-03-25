@@ -40,6 +40,8 @@ def dl(url, target_file):
 def get_broken_files(target_files):
     broken_files = []
     for i in tqdm(target_files):
+        if not i.endswith(".tar"):
+            continue
         if not os.path.exists(i):
             print(f"file not exist: {i}")
             broken_files.append(i)
@@ -65,18 +67,22 @@ if __name__ == '__main__':
     target_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{arg.target}"
     os.makedirs(target_dir, exist_ok=True)
 
+    if arg.health_check:
+        print("health check mode")
+        target_broken_files = get_broken_files(glob(f"{target_dir}/*.tar"))
+        print(f"{len(target_broken_files)} missing/broken tar file")
+        target_broken_files = [i for i in target_broken_files if os.path.exists(i)]
+        print(f"remove {len(target_broken_files)} broken tar files")
+        for i in target_broken_files:
+            os.remove(i)
+        exit()
+
     # all urls to download
     files = list(range(DATASET[arg.target]["nfiles"]))
     if arg.start_que is not None:
         assert arg.end_que is not None
         files = files[arg.start_que:arg.end_que]
-    if arg.health_check:
-        print("check tar files")
-        broken_files = get_broken_files(glob(f"{target_dir}/*.tar"))
-        print(f"{len(broken_files)} missing/broken tar file")
-        for i in broken_files:
-            if os.path.exists(i):
-                os.remove(i)
+        target_dir = f"{target_dir}_{arg.start_que}_{arg.end_que}"
 
     urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in files]
     urls.append(BASE_URL + DATASET[arg.target]["tsv"])
