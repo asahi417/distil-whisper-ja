@@ -23,7 +23,7 @@ DATASET = {
     "small": {"tsv": 'v2-tsv/small.tsv', "audio": "v2/{:03x}.tar", "nfiles": 12},
     "medium": {"tsv": 'v2-tsv/medium.tsv', "audio": "v2/{:03x}.tar", "nfiles": 116},
     "large": {"tsv": 'v2-tsv/large.tsv', "audio": "v2/{:03x}.tar", "nfiles": 579},
-    "all": {"tsv": 'v2-tsv/all.tsv', "audio": "v2/{:03x}.tar", "nfiles": 4096}
+    "all": {"tsv": 'v2-tsv/all.tsv', "audio": "v2/{:03x}.tar", "nfiles": 4095}
 }
 
 
