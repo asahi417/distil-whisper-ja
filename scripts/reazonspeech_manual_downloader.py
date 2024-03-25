@@ -49,13 +49,13 @@ def get_broken_files(target_files):
             continue
         try:
             with tarfile.open(i) as t:
-                t.extractall(path="tmp")
+                t.extractall(path="tmp_data_dir")
         except tarfile.ReadError:
             print(f"broken file found: {i}")
             broken_files.append(i)
     print(f"{len(broken_files)} broken files found.")
-    if os.path.exists("tmp"):
-        shutil.rmtree("tmp")
+    if os.path.exists("tmp_data_dir"):
+        shutil.rmtree("tmp_data_dir")
     return broken_files
 
 

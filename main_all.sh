@@ -17,7 +17,7 @@ HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
 DATASET_CHUNK_ID=1
 CHUNK_START=0
 CHUNK_END=400
-python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 50 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
 CHUNK_START=400
@@ -67,8 +67,8 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --generation_num_beams 1 \
   --decode_token_ids False \
   --overwrite_output_dir \
-  --output_dir "${HF_DATASET_ALIAS}" \
-  --wandb_project "wandb.${HF_DATASET_ALIAS}" \
+  --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub
 
