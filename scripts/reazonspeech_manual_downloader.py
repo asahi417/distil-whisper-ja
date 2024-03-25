@@ -82,6 +82,7 @@ if __name__ == '__main__':
         print("download complete")
 
         # check the tar files
+        print("tar file health check")
         filenames = get_broken_files(filenames)
         if len(filenames) == 0:
             break
