@@ -1,14 +1,5 @@
-DATASET_TYPE="tiny"
-WARMUP_STEPS=10
-
-DATASET_TYPE="small"
-WARMUP_STEPS=25
-
-DATASET_TYPE="medium"
-WARMUP_STEPS=50
-
-DATASET_TYPE="large"
-WARMUP_STEPS=100
+DATASET_TYPE="all"
+WARMUP_STEPS=500
 
 ##########
 # Config #
@@ -23,7 +14,20 @@ huggingface-cli login
 ####################
 # Download Dataset #
 ####################
-python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100
+DATASET_CHUNK_ID=1
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 0 -e 800
+
+#DATASET_CHUNK_ID=2
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 800 -e 1600
+
+#DATASET_CHUNK_ID=3
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 1600 -e 2400
+
+#DATASET_CHUNK_ID=4
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 2400 -e 3600
+
+#DATASET_CHUNK_ID=5
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 3600 -e 4096
 
 ###################
 # Generate Labels #
@@ -49,7 +53,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --overwrite_output_dir \
   --output_dir "${HF_DATASET_ALIAS}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}" \
-  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub
 
 

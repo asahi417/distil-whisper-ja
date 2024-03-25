@@ -7,6 +7,7 @@ import os
 import urllib.request
 from multiprocessing import Pool
 from tqdm import tqdm
+import tarfile
 
 # https://stackoverflow.com/questions/71692354/facing-ssl-error-with-huggingface-pretrained-models
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -35,6 +36,19 @@ def dl(url, target_file):
         return False
 
 
+def get_broken_files(target_files):
+    broken_files = []
+    for i in tqdm(target_files):
+        try:
+            with tarfile.open(i) as t:
+                t.extractall()
+        except tarfile.ReadError:
+            print(f"broken file found: {i}")
+            broken_files.append(i)
+    print(f"{len(broken_files)} broken files found.")
+    return broken_files
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download ReazonSpeech locally.')
     parser.add_argument('-t', '--target', default="tiny", help="tiny/small/medium/large/all", type=str)
@@ -56,11 +70,21 @@ if __name__ == '__main__':
     filenames = [f"{target_dir}/{arg.target}.{os.path.basename(i)}" for i in urls]
     print(f"Total files to download: {len(filenames)}")
 
-    # start downloader
-    print(f"Worker: {arg.pool}")
-    if arg.pool == 1:
-        for _url, _file in tqdm(zip(urls, filenames), total=len(filenames)):
-            dl(_url, _file)
-    else:
-        with Pool(arg.pool) as pool:
-            pool.starmap(dl, tqdm(zip(urls, filenames), total=len(filenames)))
+    while True:
+        # start downloader
+        print(f"Worker: {arg.pool}")
+        if arg.pool == 1:
+            for _url, _file in tqdm(zip(urls, filenames), total=len(filenames)):
+                dl(_url, _file)
+        else:
+            with Pool(arg.pool) as pool:
+                pool.starmap(dl, tqdm(zip(urls, filenames), total=len(filenames)))
+        print("download complete")
+
+        # check the tar files
+        filenames = get_broken_files(filenames)
+        if len(filenames) == 0:
+            break
+        for i in filenames:
+            os.remove(i)
+        print(f"retry downloading {len(filenames)} files")
