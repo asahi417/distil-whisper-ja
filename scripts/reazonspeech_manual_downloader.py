@@ -4,6 +4,7 @@
 """
 import argparse
 import os
+import shutil
 import urllib.request
 from glob import glob
 from multiprocessing import Pool
@@ -48,11 +49,13 @@ def get_broken_files(target_files):
             continue
         try:
             with tarfile.open(i) as t:
-                t.extractall()
+                t.extractall(path="tmp")
         except tarfile.ReadError:
             print(f"broken file found: {i}")
             broken_files.append(i)
     print(f"{len(broken_files)} broken files found.")
+    if os.path.exists("tmp"):
+        shutil.rmtree("tmp")
     return broken_files
 
 

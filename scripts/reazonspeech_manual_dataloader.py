@@ -1,5 +1,5 @@
 """custom HF data loader to load a large audio dataset from local
-- run `reazonspeech_manual_downloader.py` first to download the desired data type (["tiny", "small", "medium", "large", "all"]) locally.
+- run `reazonspeech_manual_downloader.py` to download the desired data type "tiny/small/medium/large/all" first
 - credit: https://huggingface.co/datasets/reazon-research/reazonspeech/blob/main/reazonspeech.py
 
 Example:
@@ -8,7 +8,7 @@ import os
 from datasets import load_dataset
 
 dataset = load_dataset(
-    f"{os.getcwd()}/reazon_custom_loader.py",
+    f"{os.getcwd()}/scripts/reazonspeech_manual_dataloader.py",
     "tiny",
     split="train",
     trust_remote_code=True
@@ -33,6 +33,8 @@ DATA_DIR_SUFFIX = os.environ.get("DATA_DIR_SUFFIX")
 class ReazonSpeechConfig(datasets.BuilderConfig):
 
     def __init__(self, *args, **kwargs):
+        self.dataset_dir_suffix = kwargs.pop("dataset_dir_suffix", None)
+
         super().__init__(*args, **kwargs)
 
 
@@ -55,8 +57,8 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager):
         data_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{self.config.name}"
-        if DATA_DIR_SUFFIX is not None:
-            data_dir = f"{data_dir}_{DATA_DIR_SUFFIX}"
+        if self.config.dataset_dir_suffix is not None:
+            data_dir = f"{data_dir}_{self.config.dataset_dir_suffix}"
         audio_files = glob(f"{data_dir}/*.tar")
         audio = [dl_manager.iter_archive(path) for path in audio_files]
         transcript_file = f"{data_dir}/{self.config.name}.{self.config.name}.tsv"

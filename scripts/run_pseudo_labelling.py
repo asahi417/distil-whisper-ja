@@ -143,6 +143,7 @@ class ModelArguments:
             )
         },
     )
+    dataset_dir_suffix: Optional[str] = field(default=None)
     attn_type: Optional[str] = field(
         default=None,
         metadata={
@@ -464,6 +465,7 @@ def main():
             cache_dir=data_args.dataset_cache_dir,
             token=token,
             num_proc=data_args.preprocessing_num_workers,
+            dataset_dir_suffix=data_args.dataset_dir_suffix
         )
 
     if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:

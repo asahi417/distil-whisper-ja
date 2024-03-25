@@ -1,9 +1,9 @@
-DATASET_TYPE="all"
-WARMUP_STEPS=500
 
 ##########
 # Config #
 ##########
+DATASET_TYPE="all"
+WARMUP_STEPS=500
 WER_THRESHOLD=10.0
 TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
@@ -23,37 +23,37 @@ DATASET_CHUNK_ID=2
 CHUNK_START=800
 CHUNK_END=1600
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
-#
+
 DATASET_CHUNK_ID=3
 CHUNK_START=1600
 CHUNK_END=2400
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
-#
-#DATASET_CHUNK_ID=4
-#CHUNK_START=2400
-#CHUNK_END=3600
-#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
-#
-#DATASET_CHUNK_ID=5
-#CHUNK_START=3600
-#CHUNK_END=4096
-#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=4
+CHUNK_START=2400
+CHUNK_END=3600
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=5
+CHUNK_START=3600
+CHUNK_END=4096
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 ###################
 # Generate Labels #
 ###################
-export DATA_DIR_SUFFIX="${CHUNK_START}_${CHUNK_END}"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
-  --dataset_config_name "${DATASET_TYPE}_${CHUNK_START}_${CHUNK_END}" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
   --per_device_eval_batch_size 16 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 128 \
+  --preprocessing_num_workers 1 \
   --logging_steps 50000 \
   --max_label_length 128 \
   --language "ja" \
