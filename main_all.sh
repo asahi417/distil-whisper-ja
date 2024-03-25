@@ -42,7 +42,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 ###################
 # Generate Labels #
 ###################
-export CUSTOM_DATA_DIR="${DATASET_TYPE}_${CHUNK_START}_${CHUNK_END}"
+export DATA_DIR_SUFFIX="${CHUNK_START}_${CHUNK_END}"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \

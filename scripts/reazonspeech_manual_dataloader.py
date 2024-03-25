@@ -27,8 +27,7 @@ os.environ['CURL_CA_BUNDLE'] = ''
 # disable warning message
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 DATA_SIZE = ["tiny", "small", "medium", "large", "all"]
-if os.environ.get("CUSTOM_DATA_DIR") is not None:
-    DATA_SIZE += [os.environ.get("CUSTOM_DATA_DIR")]
+DATA_DIR_SUFFIX = os.environ.get("DATA_DIR_SUFFIX")
 
 
 class ReazonSpeechConfig(datasets.BuilderConfig):
@@ -56,6 +55,8 @@ class ReazonSpeech(datasets.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager):
         data_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{self.config.name}"
+        if DATA_DIR_SUFFIX is not None:
+            data_dir = f"{data_dir}_{DATA_DIR_SUFFIX}"
         audio_files = glob(f"{data_dir}/*.tar")
         audio = [dl_manager.iter_archive(path) for path in audio_files]
         transcript_file = f"{data_dir}/{self.config.name}.{self.config.name}.tsv"
