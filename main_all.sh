@@ -15,31 +15,42 @@ huggingface-cli login
 # Download Dataset #
 ####################
 DATASET_CHUNK_ID=1
-python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 0 -e 800
+CHUNK_START=0
+CHUNK_END=800
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
-python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 800 -e 1600
-
-#DATASET_CHUNK_ID=3
-#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 1600 -e 2400
-
+CHUNK_START=800
+CHUNK_END=1600
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+#
+DATASET_CHUNK_ID=3
+CHUNK_START=1600
+CHUNK_END=2400
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+#
 #DATASET_CHUNK_ID=4
-#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 2400 -e 3600
-
+#CHUNK_START=2400
+#CHUNK_END=3600
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+#
 #DATASET_CHUNK_ID=5
-#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 3600 -e 4096
+#CHUNK_START=3600
+#CHUNK_END=4096
+#python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 ###################
 # Generate Labels #
 ###################
+export CUSTOM_DATA_DIR="${DATASET_TYPE}_${CHUNK_START}_${CHUNK_END}"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
-  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_config_name "${DATASET_TYPE}_${CHUNK_START}_${CHUNK_END}" \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
-  --per_device_eval_batch_size 4 \
+  --per_device_eval_batch_size 16 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
   --preprocessing_num_workers 128 \

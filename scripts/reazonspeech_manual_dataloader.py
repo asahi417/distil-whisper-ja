@@ -26,8 +26,9 @@ os.environ['CURL_CA_BUNDLE'] = ''
 
 # disable warning message
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
 DATA_SIZE = ["tiny", "small", "medium", "large", "all"]
+if os.environ.get("CUSTOM_DATA_DIR") is not None:
+    DATA_SIZE += [os.environ.get("CUSTOM_DATA_DIR")]
 
 
 class ReazonSpeechConfig(datasets.BuilderConfig):
