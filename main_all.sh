@@ -16,17 +16,22 @@ huggingface-cli login
 ####################
 DATASET_CHUNK_ID=1
 CHUNK_START=0
-CHUNK_END=800
+CHUNK_END=400
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
+CHUNK_START=400
+CHUNK_END=800
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=3
 CHUNK_START=800
 CHUNK_END=1600
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
-DATASET_CHUNK_ID=3
+DATASET_CHUNK_ID=4
 CHUNK_START=1600
-CHUNK_END=2400
+CHUNK_END=2000
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=4
@@ -36,7 +41,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 
 DATASET_CHUNK_ID=5
 CHUNK_START=3600
-CHUNK_END=4096
+CHUNK_END=4095  # remove the last one for eval
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 ###################

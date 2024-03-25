@@ -147,7 +147,7 @@ WHISPER_MODEL="openai/whisper-large-v3"
 BATCH_SIZE=32
 
 export WANDB_DISABLED="true"
-for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
+for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0" "asahi417/ja_asr.reazonspeech_test"
 do
   accelerate launch run_short_form_eval.py \
     --model_name_or_path "${WHISPER_MODEL}" \

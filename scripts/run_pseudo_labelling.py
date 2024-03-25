@@ -30,7 +30,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import datasets
-import evaluate
 import numpy as np
 import torch
 import transformers
@@ -341,55 +340,6 @@ class DataCollatorSpeechSeq2SeqWithPadding:
         return batch
 
 
-def log_metric(
-    accelerator,
-    metrics: Dict,
-    train_time: float,
-    prefix: str = "eval",
-):
-    """Helper function to log all evaluation metrics with the correct prefixes and styling."""
-    log_metrics = {}
-    for k, v in metrics.items():
-        log_metrics[f"{prefix}/{k}"] = v
-    log_metrics[f"{prefix}/time"] = train_time
-    accelerator.log(log_metrics)
-
-
-def log_pred(
-    accelerator,
-    pred_str: List[str],
-    label_str: List[str],
-    norm_pred_str: List[str],
-    norm_label_str: List[str],
-    prefix: str = "eval",
-    num_lines: int = 200000,
-):
-    """Helper function to log target/predicted transcriptions to weights and biases (wandb)."""
-    if accelerator.is_main_process:
-        wandb_tracker = accelerator.get_tracker("wandb")
-        # pretty name for split
-        prefix = prefix.replace("/", "-")
-
-        # convert str data to a wandb compatible format
-        str_data = [[label_str[i], pred_str[i], norm_label_str[i], norm_pred_str[i]] for i in range(len(pred_str))]
-        # log as a table with the appropriate headers
-        wandb_tracker.log_table(
-            table_name=f"{prefix}/all_predictions",
-            columns=["Target", "Pred", "Norm Target", "Norm Pred"],
-            data=str_data[:num_lines],
-        )
-
-        # log incorrect normalised predictions
-        str_data = np.asarray(str_data)
-        str_data_incorrect = str_data[str_data[:, -2] != str_data[:, -1]]
-        # log as a table with the appropriate headers
-        wandb_tracker.log_table(
-            table_name=f"{prefix}/incorrect_predictions",
-            columns=["Target", "Pred", "Norm Target", "Norm Pred"],
-            data=str_data_incorrect[:num_lines],
-        )
-
-
 def main():
     # 1. Parse input arguments
     # We keep distinct sets of args, for cleaner separation of model/data/training related args
@@ -558,9 +508,6 @@ def main():
     text_column_name = data_args.text_column_name
     model_input_name = feature_extractor.model_input_names[0]
     id_column_name = data_args.id_column_name
-    normalizer = (
-        BasicTextNormalizer() if data_args.language is not None else EnglishTextNormalizer(tokenizer.english_spelling_normalizer)
-    )
     # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
     # so we just need to set the correct target sampling rate.
     raw_datasets = raw_datasets.cast_column(
@@ -579,6 +526,7 @@ def main():
         # process audio
         sample = batch[audio_column_name]
         inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+
         # process audio length
         batch[model_input_name] = inputs.get(model_input_name)[0]
 
@@ -631,33 +579,6 @@ def main():
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-    # 8. Load Metric
-    metric = evaluate.load("wer")
-
-    def compute_metrics(preds, labels, file_ids):
-        # replace padded labels by the padding token
-        for idx in range(len(labels)):
-            labels[idx][labels[idx] == -100] = tokenizer.pad_token_id
-
-        pred_str = tokenizer.batch_decode(preds, skip_special_tokens=True, decode_with_timestamps=return_timestamps)
-        # we do not want to group tokens when computing the metrics
-        label_str = tokenizer.batch_decode(labels, skip_special_tokens=True)
-        wer_ortho = 100 * metric.compute(predictions=pred_str, references=label_str)
-
-        # normalize everything and re-compute the WER
-        norm_pred_str = [normalizer(pred) for pred in pred_str]
-        norm_label_str = [normalizer(label) for label in label_str]
-        # for logging, we need the pred/labels to match the norm_pred/norm_labels, so discard any filtered samples here
-        pred_str = [pred_str[i] for i in range(len(norm_pred_str)) if len(norm_label_str[i]) > 0]
-        label_str = [label_str[i] for i in range(len(norm_label_str)) if len(norm_label_str[i]) > 0]
-        file_ids = [file_ids[i] for i in range(len(file_ids)) if len(norm_label_str[i]) > 0]
-        # filtering step to only evaluate the samples that correspond to non-zero normalized references:
-        norm_pred_str = [norm_pred_str[i] for i in range(len(norm_pred_str)) if len(norm_label_str[i]) > 0]
-        norm_label_str = [norm_label_str[i] for i in range(len(norm_label_str)) if len(norm_label_str[i]) > 0]
-
-        wer = 100 * metric.compute(predictions=norm_pred_str, references=norm_label_str)
-
-        return {"wer": wer, "wer_ortho": wer_ortho}, pred_str, label_str, norm_pred_str, norm_label_str, file_ids
 
     # 12. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
@@ -700,7 +621,6 @@ def main():
         eval_preds = []
         eval_labels = []
         eval_ids = []
-        eval_start = time.time()
 
         eval_loader = DataLoader(
             vectorized_datasets[split],
@@ -754,36 +674,11 @@ def main():
                     )
 
         accelerator.wait_for_everyone()
-        eval_time = time.time() - eval_start
 
         # compute WER metric for eval sets
-        wer_desc = ""
-        if "validation" in split or "test" in split:
-            wer_metric, pred_str, label_str, norm_pred_str, norm_label_str, eval_ids = compute_metrics(
-                eval_preds, eval_labels, eval_ids
-            )
-            wer_desc = " ".join([f"Eval {key}: {value} |" for key, value in wer_metric.items()])
-            # Save metrics + predictions
-            log_metric(
-                accelerator,
-                metrics=wer_metric,
-                train_time=eval_time,
-                prefix=split,
-            )
-            log_pred(
-                accelerator,
-                pred_str,
-                label_str,
-                norm_pred_str,
-                norm_label_str,
-                prefix=split,
-            )
-            if data_args.decode_token_ids:
-                eval_preds = pred_str
-        elif data_args.decode_token_ids:
-            eval_preds = tokenizer.batch_decode(
-                eval_preds, skip_special_tokens=True, decode_with_timestamps=return_timestamps
-            )
+        eval_preds = tokenizer.batch_decode(
+            eval_preds, skip_special_tokens=True, decode_with_timestamps=return_timestamps
+        )
 
         batches.write(f"Saving final transcriptions for split {split}.")
         csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
@@ -792,10 +687,6 @@ def main():
             # write multiple rows
             writer.writerow(["file_id", "whisper_transcript"])
             writer.writerows(csv_data)
-
-        # Print metrics
-        logger.info(wer_desc)
-
         raw_datasets[split] = raw_datasets[split].add_column("whisper_transcript", eval_preds)
 
     logger.info("***** Running Labelling *****")
