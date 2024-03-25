@@ -59,7 +59,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--pool', default=10, type=int)
     parser.add_argument('-s', '--start-que', default=None, type=int)
     parser.add_argument('-e', '--end-que', default=None, type=int)
-    parser.add_argument('--health_check', default=None, type=int)
+    parser.add_argument('--health-check', action="store_true")
     arg = parser.parse_args()
     target_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{arg.target}"
     os.makedirs(target_dir, exist_ok=True)
