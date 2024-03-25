@@ -116,7 +116,7 @@ accelerate launch run_distillation.py \
 # Evaluate Student Model #
 ##########################
 export WANDB_DISABLED="true"
-for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0"
+for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0" "asahi417/ja_asr.reazonspeech_test"
 do
   accelerate launch scripts/run_short_form_eval.py \
     --model_name_or_path "${HF_ORG}/${HF_MODEL_ALIAS}" \
@@ -126,8 +126,8 @@ do
     --output_dir "eval/${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
     --per_device_eval_batch_size 512 \
     --dtype "bfloat16" \
-    --dataloader_num_workers 1 \
-    --preprocessing_num_workers 1 \
+    --dataloader_num_workers 32 \
+    --preprocessing_num_workers 32 \
     --generation_max_length 256 \
     --language "ja" \
     --wandb_project "wandb.${HF_MODEL_ALIAS}.${EVAL_DATASET##*/}" \
@@ -149,7 +149,7 @@ BATCH_SIZE=32
 export WANDB_DISABLED="true"
 for EVAL_DATASET in "asahi417/ja_asr.jsut-basic5000" "asahi417/ja_asr.common_voice_8_0" "asahi417/ja_asr.reazonspeech_test"
 do
-  accelerate launch run_short_form_eval.py \
+  accelerate launch scripts/run_short_form_eval.py \
     --model_name_or_path "${WHISPER_MODEL}" \
     --dataset_name "${EVAL_DATASET}" \
     --dataset_split_name "test" \
@@ -157,8 +157,8 @@ do
     --output_dir "eval/${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \
     --per_device_eval_batch_size "${BATCH_SIZE}" \
     --dtype "bfloat16" \
-    --dataloader_num_workers 64 \
-    --preprocessing_num_workers 128 \
+    --dataloader_num_workers 32 \
+    --preprocessing_num_workers 32 \
     --generation_max_length 256 \
     --language "ja" \
     --wandb_project "wandb.${WHISPER_MODEL##*/}.${EVAL_DATASET##*/}" \

@@ -9,7 +9,8 @@ from datasets import load_dataset
 
 dataset = load_dataset(
     f"{os.getcwd()}/scripts/reazonspeech_manual_dataloader.py",
-    "tiny",
+    "all",
+    dataset_dir_suffix="0_400",
     split="train",
     trust_remote_code=True
 )

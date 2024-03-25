@@ -522,29 +522,28 @@ def main():
         for split in data_splits:
             raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
 
-    def prepare_dataset(batch):
-        # process audio
-        sample = batch[audio_column_name]
-        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-
-        # process audio length
-        batch[model_input_name] = inputs.get(model_input_name)[0]
-
-        # process targets
-        input_str = batch[text_column_name]
-        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
-
-        # record the id of the sample as token ids
-        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
-        return batch
-
-    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-    vectorized_datasets = raw_datasets.map(
-        prepare_dataset,
-        remove_columns=raw_datasets_features,
-        num_proc=data_args.preprocessing_num_workers,
-        desc="preprocess dataset",
-    )
+    # def prepare_dataset(batch):
+    #     # process audio
+    #     sample = batch[audio_column_name]
+    #     inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+    #
+    #     # process audio length
+    #     batch[model_input_name] = inputs.get(model_input_name)[0]
+    #
+    #     # process targets
+    #     input_str = batch[text_column_name]
+    #     batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+    #
+    #     # record the id of the sample as token ids
+    #     batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
+    #     return batch
+    # raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+    # vectorized_datasets = raw_datasets.map(
+    #     prepare_dataset,
+    #     remove_columns=raw_datasets_features,
+    #     num_proc=data_args.preprocessing_num_workers,
+    #     desc="preprocess dataset",
+    # )
 
     # Handle the repository creation
     output_dir = training_args.output_dir
@@ -579,10 +578,8 @@ def main():
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-
     # 12. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
-
     data_collator = DataCollatorSpeechSeq2SeqWithPadding(
         processor=processor,
         decoder_start_token_id=model.config.decoder_start_token_id,  # <|startoftranscript|>
@@ -616,6 +613,22 @@ def main():
     # 15. Prepare everything with accelerate
     model = accelerator.prepare(model)
 
+    def prepare_dataset(batch):
+        # process audio
+        sample = batch[audio_column_name]
+        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+
+        # process audio length
+        batch[model_input_name] = inputs.get(model_input_name)[0]
+
+        # process targets
+        input_str = batch[text_column_name]
+        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+
+        # record the id of the sample as token ids
+        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
+        return batch
+
     def eval_step_with_save(split="eval"):
         # ======================== Evaluating ==============================
         eval_preds = []
@@ -623,7 +636,8 @@ def main():
         eval_ids = []
 
         eval_loader = DataLoader(
-            vectorized_datasets[split],
+            # vectorized_datasets[split],
+            raw_datasets[split],
             batch_size=per_device_eval_batch_size,
             collate_fn=data_collator,
             num_workers=dataloader_num_workers,
@@ -638,7 +652,10 @@ def main():
         output_csv = os.path.join(output_dir, f"{split}-transcription.csv")
 
         for step, batch in enumerate(batches):
+
+            batch = prepare_dataset(batch)
             file_ids = batch.pop("file_ids")
+
             # Generate predictions and pad to max generated length
             generate_fn = model.module.generate if accelerator.num_processes > 1 else model.generate
             generated_ids = generate_fn(batch["input_features"].to(dtype=torch_dtype), **gen_kwargs)
