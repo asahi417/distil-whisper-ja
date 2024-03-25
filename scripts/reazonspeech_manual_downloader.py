@@ -46,11 +46,11 @@ if __name__ == '__main__':
     os.makedirs(target_dir, exist_ok=True)
 
     # all urls to download
-    files = DATASET[arg.target]["nfiles"]
+    files = list(range(DATASET[arg.target]["nfiles"]))
     if arg.start_que is not None:
         assert arg.end_que is not None
         files = files[arg.start_que:arg.end_que]
-    urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in range(files)]
+    urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in files]
     urls.append(BASE_URL + DATASET[arg.target]["tsv"])
     urls = [i for i in urls if not os.path.exists(f"{target_dir}/{arg.target}.{os.path.basename(i)}")]
     filenames = [f"{target_dir}/{arg.target}.{os.path.basename(i)}" for i in urls]

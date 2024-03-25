@@ -27,6 +27,8 @@ huggingface-cli login
 # Download Dataset #
 ####################
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100
+# if it's `all`, split into chunks
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 0 -e 600
 
 ###################
 # Generate Labels #
