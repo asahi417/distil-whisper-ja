@@ -39,6 +39,10 @@ def dl(url, target_file):
 def get_broken_files(target_files):
     broken_files = []
     for i in tqdm(target_files):
+        if not os.path.exists(i):
+            print(f"file not exist: {i}")
+            broken_files.append(i)
+            continue
         try:
             with tarfile.open(i) as t:
                 t.extractall()
