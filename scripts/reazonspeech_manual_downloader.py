@@ -39,12 +39,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download ReazonSpeech locally.')
     parser.add_argument('-t', '--target', default="tiny", help="tiny/small/medium/large/all", type=str)
     parser.add_argument('-p', '--pool', default=10, help="thread pool", type=int)
+    parser.add_argument('-s', '--start-que', default=None, help="thread pool", type=int)
+    parser.add_argument('-e', '--end-que', default=None, help="thread pool", type=int)
     arg = parser.parse_args()
     target_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{arg.target}"
     os.makedirs(target_dir, exist_ok=True)
 
     # all urls to download
-    urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in range(DATASET[arg.target]["nfiles"])]
+    files = DATASET[arg.target]["nfiles"]
+    if arg.start_que is not None:
+        assert arg.end_que is not None
+        files = files[arg.start_que:arg.end_que]
+    urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in range(files)]
     urls.append(BASE_URL + DATASET[arg.target]["tsv"])
     urls = [i for i in urls if not os.path.exists(f"{target_dir}/{arg.target}.{os.path.basename(i)}")]
     filenames = [f"{target_dir}/{arg.target}.{os.path.basename(i)}" for i in urls]

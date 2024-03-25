@@ -40,8 +40,8 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --id_column_name "name" \
   --per_device_eval_batch_size 4 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
+  --dataloader_num_workers 128 \
+  --preprocessing_num_workers 128 \
   --logging_steps 50000 \
   --max_label_length 128 \
   --language "ja" \

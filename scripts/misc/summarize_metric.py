@@ -1,9 +1,16 @@
 import pandas as pd
 from glob import glob
 import evaluate
+from yakinori import Yakinori
 
 
 metric = evaluate.load("wer")
+yakinori = Yakinori()
+
+
+def text_to_pronounce(text: str):
+    parsed_list = yakinori.get_parsed_list(text)
+    return yakinori.get_roma_sentence(parsed_list, is_hatsuon=True)
 
 
 def normalization(text: str):
@@ -20,7 +27,10 @@ for i in glob("eval/*/all_predictions.test.csv"):
     target = [normalization(i) for i in df["Norm Target"].values]
     pred = [normalization(i) for i in df["Norm Pred"].values]
     wer = metric.compute(predictions=pred, references=target) * 100
-    summary.append({"model": model, "data": data, "wer": wer})
+    pred_pr = [text_to_pronounce(p) for p in pred]
+    target_pr = [text_to_pronounce(t) for t in target]
+    per = metric.compute(predictions=pred_pr, references=target_pr) * 100
+    summary.append({"model": model, "data": data, "wer": wer, "per": per})
     if data not in pred_list:
         pred_list[data] = {}
     if "target" not in pred_list[data]:
