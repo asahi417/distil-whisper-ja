@@ -65,8 +65,6 @@ if __name__ == '__main__':
     parser.add_argument('--health-check', action="store_true")
     arg = parser.parse_args()
     target_dir = f"{os.path.expanduser('~')}/.cache/reazon_manual_download/{arg.target}"
-    os.makedirs(target_dir, exist_ok=True)
-
     if arg.health_check:
         print("health check mode")
         target_broken_files = get_broken_files(glob(f"{target_dir}/*.tar"))
@@ -84,6 +82,7 @@ if __name__ == '__main__':
         files = files[arg.start_que:arg.end_que]
         target_dir = f"{target_dir}_{arg.start_que}_{arg.end_que}"
 
+    os.makedirs(target_dir, exist_ok=True)
     urls = [BASE_URL + DATASET[arg.target]["audio"].format(idx) for idx in files]
     urls.append(BASE_URL + DATASET[arg.target]["tsv"])
     urls = [i for i in urls if not os.path.exists(f"{target_dir}/{arg.target}.{os.path.basename(i)}")]
