@@ -48,7 +48,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --generation_num_beams 1 \
   --decode_token_ids False \
   --overwrite_output_dir \
-  --output_dir "output.${HF_DATASET_ALIAS}" \
+  --output_dir "${HF_DATASET_ALIAS}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}" \
   --push_to_hub

@@ -523,20 +523,20 @@ def main():
             )
         else:
             repo_name = training_args.hub_model_id
-        repo_id = create_repo(
-            repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
-        ).repo_id
-
-        shutil.move(training_args.output_dir, "tmp")
-        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset")
-        shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
-        shutil.rmtree("tmp")
-
-        # Ensure large txt files can be pushed to the Hub with git-lfs
-        with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
-            git_lfs_extensions = f.read()
-            if "*.csv" not in git_lfs_extensions:
-                f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
+        # repo_id = create_repo(
+        #     repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
+        # ).repo_id
+        #
+        repo = Repository(training_args.output_dir, clone_from=repo_name, token=token, repo_type="dataset")
+        # shutil.move(training_args.output_dir, "tmp")
+        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
+        # shutil.rmtree("tmp")
+        #
+        # # Ensure large txt files can be pushed to the Hub with git-lfs
+        # with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
+        #     git_lfs_extensions = f.read()
+        #     if "*.csv" not in git_lfs_extensions:
+        #         f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
     else:
         # this is where we'll save our transcriptions
         if not os.path.exists(training_args.output_dir):
