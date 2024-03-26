@@ -21,7 +21,7 @@ import csv
 # You can also adapt this script for your own pseudo-labelling tasks. Pointers for this are left as comments.
 import logging
 import os
-import shutil
+# import shutil
 import sys
 import time
 from dataclasses import dataclass, field
@@ -518,32 +518,28 @@ def main():
     )
 
     # Handle the repository creation
-    if training_args.push_to_hub:
-        if training_args.hub_model_id is None:
-            repo_name = get_full_repo_name(
-                Path(training_args.output_dir).absolute().name,
-                token=token,
-            )
-        else:
-            repo_name = training_args.hub_model_id
-        # repo_id = create_repo(
-        #     repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
-        # ).repo_id
-        #
-        repo = Repository(training_args.output_dir, clone_from=repo_name, token=token, repo_type="dataset")
-        # shutil.move(training_args.output_dir, "tmp")
-        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
-        # shutil.rmtree("tmp")
-        #
-        # # Ensure large txt files can be pushed to the Hub with git-lfs
-        # with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
-        #     git_lfs_extensions = f.read()
-        #     if "*.csv" not in git_lfs_extensions:
-        #         f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
-    else:
-        # this is where we'll save our transcriptions
-        if not os.path.exists(training_args.output_dir):
-            os.makedirs(training_args.output_dir)
+    # if training_args.push_to_hub:
+    #     assert training_args.hub_model_id
+    #     repo = Repository(
+    #         training_args.output_dir, clone_from=training_args.hub_model_id, token=token, repo_type="dataset"
+    #     )
+    #     # repo_id = create_repo(
+    #     #     training_args.hub_model_id, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
+    #     # ).repo_id
+    #     #
+    #     # shutil.move(training_args.output_dir, "tmp")
+    #     # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
+    #     # shutil.rmtree("tmp")
+    #     #
+    #     # # Ensure large txt files can be pushed to the Hub with git-lfs
+    #     # with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
+    #     #     git_lfs_extensions = f.read()
+    #     #     if "*.csv" not in git_lfs_extensions:
+    #     #         f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
+    # else:
+    #     # this is where we'll save our transcriptions
+    if not os.path.exists(training_args.output_dir):
+        os.makedirs(training_args.output_dir)
 
     # 7. Preprocessing the datasets.
     # We need to read the audio files as arrays and tokenize the targets.
@@ -567,6 +563,7 @@ def main():
         # record the id of the sample as token ids
         batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
         return batch
+
     raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
     vectorized_datasets = raw_datasets.map(
         prepare_dataset,
@@ -620,7 +617,6 @@ def main():
 
         eval_loader = DataLoader(
             vectorized_datasets[split],
-            # raw_datasets[split],
             batch_size=per_device_eval_batch_size,
             collate_fn=data_collator,
             num_workers=dataloader_num_workers,
@@ -666,11 +662,11 @@ def main():
                     writer.writerow(["file_id", "whisper_transcript"])
                     writer.writerows(csv_data)
 
-                if training_args.push_to_hub and accelerator.is_main_process:
-                    repo.push_to_hub(
-                        commit_message=f"Saving transcriptions for split {split} step {step}.",
-                        blocking=False,
-                    )
+                # if training_args.push_to_hub and accelerator.is_main_process:
+                #     repo.push_to_hub(
+                #         commit_message=f"Saving transcriptions for split {split} step {step}.",
+                #         blocking=False,
+                #     )
 
         accelerator.wait_for_everyone()
 
@@ -698,15 +694,15 @@ def main():
     for split in data_splits:
         eval_step_with_save(split=split)
         accelerator.wait_for_everyone()
-        if training_args.push_to_hub and accelerator.is_main_process:
-            repo.push_to_hub(
-                commit_message=f"Saving final transcriptions for split {split.replace('.', '-').split('/')[-1]}",
-                blocking=False,
-            )
+        # if training_args.push_to_hub and accelerator.is_main_process:
+        #     repo.push_to_hub(
+        #         commit_message=f"Saving final transcriptions for split {split.replace('.', '-').split('/')[-1]}",
+        #         blocking=False,
+        #     )
     if accelerator.is_main_process:
         raw_datasets.save_to_disk(training_args.output_dir, num_proc=data_args.preprocessing_num_workers)
         if training_args.push_to_hub:
-            safe_push(raw_datasets, repo_name, data_args.dataset_config_name)
+            safe_push(raw_datasets, training_args.hub_model_id, data_args.dataset_config_name)
     accelerator.end_training()
 
 

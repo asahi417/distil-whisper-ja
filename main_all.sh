@@ -16,13 +16,12 @@ huggingface-cli login
 ####################
 DATASET_CHUNK_ID=1
 CHUNK_START=0
-CHUNK_END=10
-#CHUNK_END=400
+CHUNK_END=400
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 50 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
-CHUNK_START=400
-CHUNK_END=800
+CHUNK_START=200
+CHUNK_END=400
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=3
@@ -49,9 +48,37 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 # Generate Labels #
 ###################
 export WANDB_DISABLED="true"
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 python scripts/create_repo.py --repo_name "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
-accelerate launch scripts/run_pseudo_labelling.py \
+
+#export CUDA_VISIBLE_DEVICES=
+#accelerate launch scripts/run_pseudo_labelling.py \
+#  --model_name_or_path "${TEACHER_MODEL}" \
+#  --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
+#  --dataset_config_name "${DATASET_TYPE}" \
+#  --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
+#  --dataset_split_name "train" \
+#  --text_column_name "transcription" \
+#  --id_column_name "name" \
+#  --per_device_eval_batch_size 32 \
+#  --dtype "bfloat16" \
+#  --dataloader_num_workers 1 \
+#  --preprocessing_num_workers 32 \
+#  --logging_steps 10000 \
+#  --max_label_length 128 \
+#  --language "ja" \
+#  --return_timestamps \
+#  --attn_type "flash_attn" \
+#  --generation_num_beams 1 \
+#  --decode_token_ids False \
+#  --overwrite_output_dir \
+#  --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+#  --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+#  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+#  --push_to_hub \
+#  --preprocessing_only
+
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
@@ -59,11 +86,11 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
-  --per_device_eval_batch_size 16 \
+  --per_device_eval_batch_size 32 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 1 \
-  --logging_steps 5 \
+  --preprocessing_num_workers 64 \
+  --logging_steps 10000 \
   --max_label_length 128 \
   --language "ja" \
   --return_timestamps \
@@ -76,8 +103,8 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub
 
-export CUDA_VISIBLE_DEVICES=
-accelerate launch scripts/run_pseudo_labelling.py \
+
+python scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
@@ -85,11 +112,11 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
-  --per_device_eval_batch_size 16 \
+  --per_device_eval_batch_size 32 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 32 \
-  --logging_steps 5 \
+  --preprocessing_num_workers 1 \
+  --logging_steps 10000 \
   --max_label_length 128 \
   --language "ja" \
   --return_timestamps \
@@ -100,8 +127,8 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --push_to_hub \
-  --preprocessing_only
+  --push_to_hub
+
 
 #####################
 # Filtering Dataset #
