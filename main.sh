@@ -29,6 +29,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100
 # Generate Labels #
 ###################
 export WANDB_DISABLED="true"
+python scripts/create_repo.py --repo_name "${HF_ORG}/${HF_DATASET_ALIAS}" --output_dir "${HF_DATASET_ALIAS}"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \

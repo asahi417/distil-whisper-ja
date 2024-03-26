@@ -250,6 +250,9 @@ class DataTrainingArguments:
         default=False,
         metadata={"help": "Whether or not to create a private dataset for the pseudo-labelled data."},
     )
+    preprocessing_only: bool = field(
+        default=False,
+    )
 
 
 def shift_tokens_right(label_ids: np.array, decoder_start_token_id: int) -> np.ndarray:
@@ -571,6 +574,8 @@ def main():
         num_proc=data_args.preprocessing_num_workers,
         desc="preprocess dataset",
     )
+    if data_args.preprocessing_only:
+        return
 
     # 12. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
