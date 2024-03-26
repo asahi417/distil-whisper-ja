@@ -75,26 +75,19 @@ accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
   --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
-  --dataset_split_name "train" \
   --text_column_name "transcription" \
   --id_column_name "name" \
   --per_device_eval_batch_size 32 \
-  --dtype "bfloat16" \
-  --dataloader_num_workers 1 \
+  --dataloader_num_workers 64 \
   --preprocessing_num_workers 64 \
   --logging_steps 10000 \
   --max_label_length 128 \
   --language "ja" \
-  --return_timestamps \
-  --attn_type "flash_attn" \
   --generation_num_beams 1 \
-  --decode_token_ids False \
   --overwrite_output_dir \
-  --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --push_to_hub
-
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
 
 #####################
 # Filtering Dataset #

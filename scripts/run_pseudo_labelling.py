@@ -395,8 +395,7 @@ def main():
     # We need to read the audio files as arrays and tokenize the targets.
 
     if data_args.max_samples_per_split is not None:
-        for split in data_splits:
-            raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
+        raw_datasets["train"] = raw_datasets["train"].select(range(data_args.max_samples_per_split))
 
     def prepare_dataset(batch):
         # process audio
@@ -445,8 +444,7 @@ def main():
     gen_kwargs = {
         "max_length": max_label_length,
         "num_beams": num_beams,
-        "return_timestamps": return_timestamps,
-        "forced_decoder_ids": False
+        "return_timestamps": return_timestamps
     }
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
         # forcing the language and task tokens helps multilingual models in their generations
