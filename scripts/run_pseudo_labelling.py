@@ -560,15 +560,18 @@ def main():
         # ad hock bug fix
         # if os.path.exists(f"tmp/{output_dir}"):
         #     shutil.rmtree(f"tmp/{output_dir}")
-        shutil.move(output_dir, "tmp")
-        repo = Repository(
-            output_dir,
-            clone_from=repo_name,
-            token=token,
-            repo_type="dataset",
-        )
-        shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
-        shutil.rmtree("tmp")
+        try:
+            shutil.move(output_dir, "tmp")
+            repo = Repository(
+                output_dir,
+                clone_from=repo_name,
+                token=token,
+                repo_type="dataset",
+            )
+            shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
+            shutil.rmtree("tmp")
+        except Exception:
+            pass
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
