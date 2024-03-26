@@ -560,7 +560,7 @@ def main():
         # ad hock bug fix
         # if os.path.exists(f"tmp/{output_dir}"):
         #     shutil.rmtree(f"tmp/{output_dir}")
-        # shutil.move(output_dir, "tmp")
+        shutil.move(output_dir, "tmp")
         repo = Repository(
             output_dir,
             clone_from=repo_name,
