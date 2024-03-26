@@ -28,6 +28,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100
 ###################
 # Generate Labels #
 ###################
+export WANDB_DISABLED="true"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
@@ -38,7 +39,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --per_device_eval_batch_size 4 \
   --dtype "bfloat16" \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 32 \
+  --preprocessing_num_workers 1 \
   --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \
@@ -84,6 +85,7 @@ python create_student_model.py \
 ##########################
 rm -rf run_distillation.py
 cp ../scripts/run_distillation.py ./
+export WANDB_DISABLED="false"
 accelerate launch run_distillation.py \
   --model_name_or_path "./${HF_MODEL_ALIAS}-init" \
   --teacher_model_name_or_path "${TEACHER_MODEL}" \

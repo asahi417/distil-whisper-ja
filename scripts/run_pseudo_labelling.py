@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
+from time import sleep
 import datasets
 import numpy as np
 import torch
@@ -51,7 +51,7 @@ from transformers import (
     WhisperProcessor,
     WhisperTokenizerFast,
 )
-from transformers.models.whisper.english_normalizer import EnglishTextNormalizer, BasicTextNormalizer
+# from transformers.models.whisper.english_normalizer import EnglishTextNormalizer, BasicTextNormalizer
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
@@ -557,21 +557,16 @@ def main():
             repo_name = training_args.hub_model_id
         create_repo(repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset)
 
-        # ad hock bug fix
-        # if os.path.exists(f"tmp/{output_dir}"):
-        #     shutil.rmtree(f"tmp/{output_dir}")
-        try:
-            shutil.move(output_dir, "tmp")
-            repo = Repository(
-                output_dir,
-                clone_from=repo_name,
-                token=token,
-                repo_type="dataset",
-            )
-            shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
-            shutil.rmtree("tmp")
-        except Exception:
-            pass
+        # shutil.move(output_dir, "tmp")
+        # repo = Repository(
+        #     output_dir,
+        #     clone_from=repo_name,
+        #     token=token,
+        #     repo_type="dataset",
+        # )
+        # shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
+        # shutil.rmtree("tmp")
+        # # sleep()
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
