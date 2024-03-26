@@ -558,7 +558,8 @@ def main():
         create_repo(repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset)
 
         # ad hock bug fix
-        # shutil.rmtree("tmp")
+        if os.path.exists(f"tmp/{output_dir}"):
+            shutil.rmtree(f"tmp/{output_dir}")
         shutil.move(output_dir, "tmp")
         repo = Repository(
             output_dir,
