@@ -70,7 +70,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --dataset_config_name "${DATASET_TYPE}" \
   --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
   --per_device_eval_batch_size 32 \
-  --dataloader_num_workers 64 \
+  --dataloader_num_workers 1 \
   --preprocessing_num_workers 64 \
   --logging_steps 10000 \
   --max_label_length 128 \
@@ -97,7 +97,8 @@ accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --overwrite_output_dir \
   --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --preprocessing_only
 
 #####################
 # Filtering Dataset #

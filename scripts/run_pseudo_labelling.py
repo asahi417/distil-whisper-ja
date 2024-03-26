@@ -393,8 +393,8 @@ def main():
         num_proc=data_args.preprocessing_num_workers,
         desc="preprocess dataset",
     )
-    if data_args.preprocessing_only:
-        return
+    # if data_args.preprocessing_only:
+    #     return
 
     # 8. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
