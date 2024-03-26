@@ -522,61 +522,56 @@ def main():
         for split in data_splits:
             raw_datasets[split] = raw_datasets[split].select(range(data_args.max_samples_per_split))
 
-    # def prepare_dataset(batch):
-    #     # process audio
-    #     sample = batch[audio_column_name]
-    #     inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-    #
-    #     # process audio length
-    #     batch[model_input_name] = inputs.get(model_input_name)[0]
-    #
-    #     # process targets
-    #     input_str = batch[text_column_name]
-    #     batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
-    #
-    #     # record the id of the sample as token ids
-    #     batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
-    #     return batch
-    # raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-    # vectorized_datasets = raw_datasets.map(
-    #     prepare_dataset,
-    #     remove_columns=raw_datasets_features,
-    #     num_proc=data_args.preprocessing_num_workers,
-    #     desc="preprocess dataset",
-    # )
+    def prepare_dataset(batch):
+        # process audio
+        sample = batch[audio_column_name]
+        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+
+        # process audio length
+        batch[model_input_name] = inputs.get(model_input_name)[0]
+
+        # process targets
+        input_str = batch[text_column_name]
+        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+
+        # record the id of the sample as token ids
+        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
+        return batch
+    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+    vectorized_datasets = raw_datasets.map(
+        prepare_dataset,
+        remove_columns=raw_datasets_features,
+        num_proc=data_args.preprocessing_num_workers,
+        desc="preprocess dataset",
+    )
 
     # Handle the repository creation
-    output_dir = training_args.output_dir
     if training_args.push_to_hub:
         if training_args.hub_model_id is None:
             repo_name = get_full_repo_name(
-                Path(output_dir).absolute().name,
+                Path(training_args.output_dir).absolute().name,
                 token=token,
             )
         else:
             repo_name = training_args.hub_model_id
-        create_repo(repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset)
+        repo_id = create_repo(
+            repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
+        ).repo_id
 
-        # shutil.move(output_dir, "tmp")
-        # repo = Repository(
-        #     output_dir,
-        #     clone_from=repo_name,
-        #     token=token,
-        #     repo_type="dataset",
-        # )
-        # shutil.move(f"tmp/{data_args.wandb_project}", output_dir)
+        # shutil.move(training_args.output_dir, "tmp")
+        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset",)
+        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
         # shutil.rmtree("tmp")
-        # # sleep()
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
-        with open(os.path.join(output_dir, ".gitattributes"), "r+") as f:
+        with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
             git_lfs_extensions = f.read()
             if "*.csv" not in git_lfs_extensions:
                 f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
     else:
         # this is where we'll save our transcriptions
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        if not os.path.exists(training_args.output_dir):
+            os.makedirs(training_args.output_dir)
 
     # 12. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
@@ -636,8 +631,8 @@ def main():
         eval_ids = []
 
         eval_loader = DataLoader(
-            # vectorized_datasets[split],
-            raw_datasets[split],
+            vectorized_datasets[split],
+            # raw_datasets[split],
             batch_size=per_device_eval_batch_size,
             collate_fn=data_collator,
             num_workers=dataloader_num_workers,
@@ -649,7 +644,7 @@ def main():
 
         # make the split name pretty for librispeech etc
         split = split.replace(".", "-").split("/")[-1]
-        output_csv = os.path.join(output_dir, f"{split}-transcription.csv")
+        output_csv = os.path.join(training_args.output_dir, f"{split}-transcription.csv")
 
         for step, batch in enumerate(batches):
 
@@ -722,7 +717,7 @@ def main():
                 blocking=False,
             )
     if accelerator.is_main_process:
-        raw_datasets.save_to_disk(output_dir, num_proc=data_args.preprocessing_num_workers)
+        raw_datasets.save_to_disk(training_args.output_dir, num_proc=data_args.preprocessing_num_workers)
         if training_args.push_to_hub:
             safe_push(raw_datasets, repo_name, data_args.dataset_config_name)
     accelerator.end_training()
