@@ -5,7 +5,7 @@ from huggingface_hub import Repository, create_repo
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='create repo')
     parser.add_argument('-r', '--repo_name', required=True, type=str)
-    parser.add_argument('-o', '--output_dir', required=True, type=int)
+    parser.add_argument('-o', '--output_dir', required=True, type=str)
     arg = parser.parse_args()
 
     repo_id = create_repo(arg.repo_name, exist_ok=True, repo_type="dataset").repo_id
