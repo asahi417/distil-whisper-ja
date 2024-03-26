@@ -9,7 +9,7 @@ TEACHER_MODEL="openai/whisper-large-v3"
 HF_ORG="asahi417"
 HF_DATASET_ALIAS="whisper_transcriptions.reazonspeech.${DATASET_TYPE}"
 HF_MODEL_ALIAS="distil-whisper-large-v3-ja-reazonspeech-${DATASET_TYPE}"
-#huggingface-cli login
+huggingface-cli login
 
 ####################
 # Download Dataset #
