@@ -59,9 +59,9 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --id_column_name "name" \
   --per_device_eval_batch_size 16 \
   --dtype "bfloat16" \
-  --dataloader_num_workers 32 \
-  --preprocessing_num_workers 32 \
-  --logging_steps 50000 \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 1 \
+  --logging_steps 5 \
   --max_label_length 128 \
   --language "ja" \
   --return_timestamps \
@@ -69,7 +69,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --generation_num_beams 1 \
   --decode_token_ids False \
   --overwrite_output_dir \
-  --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub

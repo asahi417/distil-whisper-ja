@@ -515,6 +515,34 @@ def main():
         datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
     )
 
+    # Handle the repository creation
+    if training_args.push_to_hub:
+        if training_args.hub_model_id is None:
+            repo_name = get_full_repo_name(
+                Path(training_args.output_dir).absolute().name,
+                token=token,
+            )
+        else:
+            repo_name = training_args.hub_model_id
+        repo_id = create_repo(
+            repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
+        ).repo_id
+
+        # shutil.move(training_args.output_dir, "tmp")
+        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset",)
+        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
+        # shutil.rmtree("tmp")
+
+        # Ensure large txt files can be pushed to the Hub with git-lfs
+        with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
+            git_lfs_extensions = f.read()
+            if "*.csv" not in git_lfs_extensions:
+                f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
+    else:
+        # this is where we'll save our transcriptions
+        if not os.path.exists(training_args.output_dir):
+            os.makedirs(training_args.output_dir)
+
     # 7. Preprocessing the datasets.
     # We need to read the audio files as arrays and tokenize the targets.
 
@@ -544,34 +572,6 @@ def main():
         num_proc=data_args.preprocessing_num_workers,
         desc="preprocess dataset",
     )
-
-    # Handle the repository creation
-    if training_args.push_to_hub:
-        if training_args.hub_model_id is None:
-            repo_name = get_full_repo_name(
-                Path(training_args.output_dir).absolute().name,
-                token=token,
-            )
-        else:
-            repo_name = training_args.hub_model_id
-        repo_id = create_repo(
-            repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
-        ).repo_id
-
-        # shutil.move(training_args.output_dir, "tmp")
-        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset",)
-        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
-        # shutil.rmtree("tmp")
-
-        # Ensure large txt files can be pushed to the Hub with git-lfs
-        with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
-            git_lfs_extensions = f.read()
-            if "*.csv" not in git_lfs_extensions:
-                f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
-    else:
-        # this is where we'll save our transcriptions
-        if not os.path.exists(training_args.output_dir):
-            os.makedirs(training_args.output_dir)
 
     # 12. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
