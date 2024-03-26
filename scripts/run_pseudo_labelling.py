@@ -528,7 +528,7 @@ def main():
         ).repo_id
 
         shutil.move(training_args.output_dir, "tmp")
-        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset",)
+        repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset")
         shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
         shutil.rmtree("tmp")
 

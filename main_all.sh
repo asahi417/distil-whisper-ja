@@ -48,6 +48,8 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 ###################
 # Generate Labels #
 ###################
+python scripts/create_repo.py --repo_name "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
+
 export WANDB_DISABLED="true"
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
@@ -69,7 +71,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --generation_num_beams 1 \
   --decode_token_ids False \
   --overwrite_output_dir \
-  --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --output_dir "${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --push_to_hub
