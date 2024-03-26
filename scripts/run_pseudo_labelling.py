@@ -26,7 +26,6 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import datasets
 import numpy as np
@@ -38,7 +37,7 @@ from datasets import (
     DatasetDict,
     load_dataset,
 )
-from huggingface_hub import HfFolder, Repository, create_repo, get_full_repo_name
+from huggingface_hub import HfFolder
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import (
@@ -104,53 +103,9 @@ class ModelArguments:
         default=None,
         metadata={"help": "processor name or path if not the same as model_name"},
     )
-    cache_dir: Optional[str] = field(
-        default=None,
-        metadata={"help": "Where to store the pretrained models downloaded from huggingface.co"},
-    )
     use_fast_tokenizer: bool = field(
         default=True,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
-    )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
-    subfolder: str = field(
-        default="",
-        metadata={
-            "help": "In case the relevant files are located inside a subfolder of the model repo on huggingface.co, you can"
-            "specify the folder name here."
-        },
-    )
-    token: str = field(
-        default=None,
-        metadata={
-            "help": (
-                "The token to use as HTTP bearer authorization for remote files. If not specified, will use the token "
-                "generated when running `huggingface-cli login` (stored in `~/.huggingface`)."
-            )
-        },
-    )
-    dtype: Optional[str] = field(
-        default="float32",
-        metadata={
-            "help": (
-                "The data type (dtype) in which to load the model weights. One of `float32` (full-precision), "
-                "`float16` or `bfloat16` (both half-precision)."
-            )
-        },
-    )
-    attn_type: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "Which attention type to use in the encoder and decoder attention layers. Can be one of:"
-                "1. `None`: default Transformers attention implementation."
-                "2. `flash_attn`: Flash Attention through PyTorch SDPA. Requires `torch>=2.0` and `optimum` to be installed. Recommended for hardware where Flash Attention 2 is not supported, e.g. Turing GPUs, (T4, RTX 2080)"
-                "3. `flash_attn_2`: Flash Attention 2 through the Flash Attention package https://github.com/Dao-AILab/flash-attention. **Always** recommended on supported hardware (Ampere, Ada, or Hopper GPUs, e.g., A100, RTX 3090, RTX 4090, H100)"
-            )
-        },
     )
 
 
@@ -168,15 +123,7 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The configuration name of the dataset to use (via the datasets library)."},
     )
-    dataset_cache_dir: Optional[str] = field(
-        default=None,
-        metadata={"help": "Path to cache directory for saving and loading datasets"},
-    )
     dataset_dir_suffix: Optional[str] = field(default=None)
-    overwrite_cache: bool = field(
-        default=False,
-        metadata={"help": "Overwrite the cached training and evaluation sets"},
-    )
     preprocessing_num_workers: Optional[int] = field(
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
@@ -197,21 +144,6 @@ class DataTrainingArguments:
         default=128,
         metadata={"help": "Truncate transcriptions that are longer `max_label_length` tokens."},
     )
-    data_size: Optional[int] = field(
-        default=None,
-        metadata={"help": "Data size to be use"},
-    )
-    dataset_split_name: str = field(
-        default="train+validation+test",
-        metadata={
-            "help": (
-                "The name of the data set splits to use (via the datasets library)."
-                " Defaults to 'train+validation+test'. Multiple splits can be passed by splitting a"
-                " list through the '+' character, e.g. 'train+validation' will"
-                " pseudo-label both the 'train' and 'validation' splits sequentially."
-            )
-        },
-    )
     wandb_project: str = field(
         default="distil-whisper",
         metadata={"help": "The name of the wandb project."},
@@ -219,12 +151,6 @@ class DataTrainingArguments:
     max_samples_per_split: Optional[int] = field(
         default=None,
         metadata={"help": "For debugging purposes, truncate the number of examples per split to this value if set."},
-    )
-    return_timestamps: bool = field(
-        default=False,
-        metadata={
-            "help": "Whether to return the timestamps with the text. This enables the `FlaxWhisperTimestampsLogitsProcessor`."
-        },
     )
     language: str = field(
         default=None,
@@ -234,21 +160,6 @@ class DataTrainingArguments:
                 "only. For English speech recognition, it should be left as `None`."
             )
         },
-    )
-    task: str = field(
-        default="transcribe",
-        metadata={
-            "help": "Task, either `transcribe` for speech recognition or `translate` for speech translation."
-            "This argument should be set for multilingual distillation only. For English speech recognition, it should be left as `None`."
-        },
-    )
-    decode_token_ids: bool = field(
-        default=True,
-        metadata={"help": "Whether or not to decode the predicted token ids to text transcriptions."},
-    )
-    private_dataset: bool = field(
-        default=False,
-        metadata={"help": "Whether or not to create a private dataset for the pseudo-labelled data."},
     )
     preprocessing_only: bool = field(
         default=False,
@@ -320,7 +231,6 @@ class DataCollatorSpeechSeq2SeqWithPadding:
             padding=self.target_padding,
             return_tensors="pt",
         )
-
         file_ids_batch = self.processor.tokenizer.pad(
             file_ids,
             max_length=self.max_target_length,
@@ -359,21 +269,10 @@ def main():
     # We simply have to specify the training precision and any trackers being used
     # We'll use the same dtype arguments as our JAX/Flax training script and convert
     # it to accelerate format
-    if model_args.dtype == "float16":
-        mixed_precision = "fp16"
-        torch_dtype = torch.float16
-    elif model_args.dtype == "bfloat16":
-        mixed_precision = "bf16"
-        torch_dtype = torch.bfloat16
-    else:
-        mixed_precision = "no"
-        torch_dtype = torch.float32
-
     kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=7200))
-
     accelerator = Accelerator(
         gradient_accumulation_steps=training_args.gradient_accumulation_steps,
-        mixed_precision=mixed_precision,
+        mixed_precision="bf16",
         log_with=training_args.report_to,
         project_dir=training_args.output_dir,
         kwargs_handlers=[kwargs],
@@ -405,20 +304,16 @@ def main():
 
     # 3. Load dataset
     raw_datasets = DatasetDict()
-    token = model_args.token if model_args.token is not None else HfFolder().get_token()
-
-    data_splits = data_args.dataset_split_name.split("+")
-    for split in data_splits:
-        raw_datasets[split] = load_dataset(
-            data_args.dataset_name,
-            data_args.dataset_config_name,
-            split=split,
-            trust_remote_code=True,
-            cache_dir=data_args.dataset_cache_dir,
-            token=token,
-            num_proc=data_args.preprocessing_num_workers,
-            dataset_dir_suffix=data_args.dataset_dir_suffix
-        )
+    token = HfFolder().get_token()
+    raw_datasets["train"] = load_dataset(
+        data_args.dataset_name,
+        data_args.dataset_config_name,
+        split="train",
+        trust_remote_code=True,
+        token=token,
+        num_proc=data_args.preprocessing_num_workers,
+        dataset_dir_suffix=data_args.dataset_dir_suffix
+    )
 
     if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
         raise ValueError(
@@ -439,62 +334,39 @@ def main():
     # 7. Load pretrained model, tokenizer, and feature extractor
     config = WhisperConfig.from_pretrained(
         (model_args.config_name if model_args.config_name else model_args.model_name_or_path),
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
         token=token,
     )
     feature_extractor = WhisperFeatureExtractor.from_pretrained(
         (model_args.feature_extractor_name if model_args.feature_extractor_name else model_args.model_name_or_path),
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
         token=token,
     )
     tokenizer = WhisperTokenizerFast.from_pretrained(
         (model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path),
-        cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
-        revision=model_args.model_revision,
         token=token,
     )
     processor = WhisperProcessor.from_pretrained(
         (model_args.processor_name if model_args.processor_name else model_args.model_name_or_path),
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
         token=token,
     )
     model = WhisperForConditionalGeneration.from_pretrained(
         model_args.model_name_or_path,
         config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        subfolder=model_args.subfolder,
         token=token,
         low_cpu_mem_usage=True,
-        torch_dtype=torch_dtype,
-        use_flash_attention_2=model_args.attn_type == "flash_attn_2",
+        torch_dtype=torch.bfloat16,
+        use_flash_attention_2=False,
     )
-
-    if model_args.attn_type == "flash_attn":
-        pass
-        # model = model.to_bettertransformer()
-    elif model_args.attn_type not in [None, "flash_attn", "flash_attn_2"]:
-        raise ValueError(
-            f"Argument `attn_type` is set to {model_args.attn_type}. Should be one of:"
-            "1. `None`: default Transformers attention implementation."
-            "2. `flash_attn`: Flash Attention through PyTorch SDPA. Requires `torch>=2.0` and `optimum` to be installed. Recommended for hardware where Flash Attention 2 is not supported, e.g. Turing GPUs, (T4, RTX 2080)."
-            "3. `flash_attn_2`: Flash Attention 2 through the Flash Attention package https://github.com/Dao-AILab/flash-attention. **Always** recommended on supported hardware (Ampere, Ada, or Hopper GPUs, e.g., A100, RTX 3090, RTX 4090, H100)."
-        )
-
     model.eval()
 
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
-    return_timestamps = data_args.return_timestamps
+    return_timestamps = True
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
         # We need to set the language and task ids for multilingual checkpoints
         tokenizer.set_prefix_tokens(
-            language=data_args.language, task=data_args.task, predict_timestamps=return_timestamps
+            language=data_args.language, task="transcribe", predict_timestamps=return_timestamps
         )
     elif data_args.language is not None:
         raise ValueError(
@@ -516,28 +388,6 @@ def main():
         data_args.audio_column_name,
         datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
     )
-
-    # Handle the repository creation
-    # if training_args.push_to_hub:
-    #     assert training_args.hub_model_id
-    #     repo = Repository(
-    #         training_args.output_dir, clone_from=training_args.hub_model_id, token=token, repo_type="dataset"
-    #     )
-    #     # repo_id = create_repo(
-    #     #     training_args.hub_model_id, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
-    #     # ).repo_id
-    #     #
-    #     # shutil.move(training_args.output_dir, "tmp")
-    #     # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
-    #     # shutil.rmtree("tmp")
-    #     #
-    #     # # Ensure large txt files can be pushed to the Hub with git-lfs
-    #     # with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
-    #     #     git_lfs_extensions = f.read()
-    #     #     if "*.csv" not in git_lfs_extensions:
-    #     #         f.write("*.csv filter=lfs diff=lfs merge=lfs -text")
-    # else:
-    #     # this is where we'll save our transcriptions
     if not os.path.exists(training_args.output_dir):
         os.makedirs(training_args.output_dir)
 
@@ -596,13 +446,14 @@ def main():
         "max_length": max_label_length,
         "num_beams": num_beams,
         "return_timestamps": return_timestamps,
+        "forced_decoder_ids": False
     }
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
         # forcing the language and task tokens helps multilingual models in their generations
         gen_kwargs.update(
             {
                 "language": data_args.language,
-                "task": data_args.task,
+                "task": "transcribe",
             }
         )
 
@@ -636,7 +487,7 @@ def main():
 
             # Generate predictions and pad to max generated length
             generate_fn = model.module.generate if accelerator.num_processes > 1 else model.generate
-            generated_ids = generate_fn(batch["input_features"].to(dtype=torch_dtype), **gen_kwargs)
+            generated_ids = generate_fn(batch["input_features"].to(dtype=torch.bfloat16), **gen_kwargs)
             generated_ids = accelerator.pad_across_processes(generated_ids, dim=1, pad_index=tokenizer.pad_token_id)
             # Gather all predictions and targets
             file_ids, generated_ids, labels = accelerator.gather_for_metrics(
@@ -650,10 +501,6 @@ def main():
             if step % training_args.logging_steps == 0 and step > 0:
                 batches.write(f"Saving transcriptions for split {split} step {step}")
                 accelerator.wait_for_everyone()
-                if data_args.decode_token_ids:
-                    eval_preds = tokenizer.batch_decode(
-                        eval_preds, skip_special_tokens=True, decode_with_timestamps=return_timestamps
-                    )
                 csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
 
                 with open(output_csv, "w", encoding="UTF8", newline="") as f:
@@ -661,12 +508,6 @@ def main():
                     # write multiple rows
                     writer.writerow(["file_id", "whisper_transcript"])
                     writer.writerows(csv_data)
-
-                # if training_args.push_to_hub and accelerator.is_main_process:
-                #     repo.push_to_hub(
-                #         commit_message=f"Saving transcriptions for split {split} step {step}.",
-                #         blocking=False,
-                #     )
 
         accelerator.wait_for_everyone()
 
@@ -690,19 +531,11 @@ def main():
         f"  Total eval batch size (w. parallel & distributed) = {training_args.per_device_eval_batch_size * accelerator.num_processes}"
     )
     logger.info(f"  Predict labels with timestamps = {return_timestamps}")
-    logger.info(f"  Decode labels to transcriptions = {data_args.decode_token_ids}")
-    for split in data_splits:
-        eval_step_with_save(split=split)
-        accelerator.wait_for_everyone()
-        # if training_args.push_to_hub and accelerator.is_main_process:
-        #     repo.push_to_hub(
-        #         commit_message=f"Saving final transcriptions for split {split.replace('.', '-').split('/')[-1]}",
-        #         blocking=False,
-        #     )
+    eval_step_with_save(split="train")
+    accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         raw_datasets.save_to_disk(training_args.output_dir, num_proc=data_args.preprocessing_num_workers)
-        if training_args.push_to_hub:
-            safe_push(raw_datasets, training_args.hub_model_id, data_args.dataset_config_name)
+        safe_push(raw_datasets, training_args.hub_model_id, data_args.dataset_config_name)
     accelerator.end_training()
 
 
