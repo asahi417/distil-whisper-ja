@@ -20,8 +20,8 @@ CHUNK_END=400
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 50 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
-CHUNK_START=200
-CHUNK_END=400
+CHUNK_START=400
+CHUNK_END=800
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=3
@@ -34,12 +34,27 @@ CHUNK_START=1600
 CHUNK_END=2000
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
-DATASET_CHUNK_ID=4
+DATASET_CHUNK_ID=5
+CHUNK_START=2000
+CHUNK_END=2400
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=6
 CHUNK_START=2400
+CHUNK_END=2800
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=7
+CHUNK_START=2800
+CHUNK_END=3200
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
+
+DATASET_CHUNK_ID=8
+CHUNK_START=3200
 CHUNK_END=3600
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
-DATASET_CHUNK_ID=5
+DATASET_CHUNK_ID=9
 CHUNK_START=3600
 CHUNK_END=4095  # remove the last one for eval
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
@@ -54,10 +69,8 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
   --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
-  --text_column_name "transcription" \
-  --id_column_name "name" \
   --per_device_eval_batch_size 32 \
-  --dataloader_num_workers 1 \
+  --dataloader_num_workers 64 \
   --preprocessing_num_workers 64 \
   --logging_steps 10000 \
   --max_label_length 128 \
@@ -68,17 +81,14 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
   --preprocessing_only
-
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
   --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
   --dataset_config_name "${DATASET_TYPE}" \
   --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
-  --text_column_name "transcription" \
-  --id_column_name "name" \
   --per_device_eval_batch_size 32 \
-  --dataloader_num_workers 64 \
+  --dataloader_num_workers 1 \
   --preprocessing_num_workers 64 \
   --logging_steps 10000 \
   --max_label_length 128 \
