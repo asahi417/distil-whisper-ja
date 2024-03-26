@@ -417,7 +417,7 @@ def main():
     gen_kwargs = {
         "max_length": max_label_length,
         "num_beams": num_beams,
-        "data_args.return_timestamps": data_args.return_timestamps
+        "return_timestamps": data_args.return_timestamps
     }
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
         # forcing the language and task tokens helps multilingual models in their generations
