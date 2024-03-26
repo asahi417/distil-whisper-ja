@@ -612,22 +612,6 @@ def main():
     # 15. Prepare everything with accelerate
     model = accelerator.prepare(model)
 
-    def prepare_dataset(batch):
-        # process audio
-        sample = batch[audio_column_name]
-        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-
-        # process audio length
-        batch[model_input_name] = inputs.get(model_input_name)[0]
-
-        # process targets
-        input_str = batch[text_column_name]
-        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
-
-        # record the id of the sample as token ids
-        batch["file_id"] = tokenizer(batch[id_column_name], add_special_tokens=False).input_ids
-        return batch
-
     def eval_step_with_save(split="eval"):
         # ======================== Evaluating ==============================
         eval_preds = []
@@ -652,7 +636,6 @@ def main():
 
         for step, batch in enumerate(batches):
 
-            batch = prepare_dataset(batch)
             file_ids = batch.pop("file_ids")
 
             # Generate predictions and pad to max generated length
