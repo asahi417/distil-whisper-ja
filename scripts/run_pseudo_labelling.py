@@ -28,7 +28,6 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-from time import sleep
 import datasets
 import numpy as np
 import torch
@@ -528,10 +527,10 @@ def main():
             repo_name, exist_ok=True, token=token, repo_type="dataset", private=data_args.private_dataset
         ).repo_id
 
-        # shutil.move(training_args.output_dir, "tmp")
+        shutil.move(training_args.output_dir, "tmp")
         repo = Repository(training_args.output_dir, clone_from=repo_id, token=token, repo_type="dataset",)
-        # shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
-        # shutil.rmtree("tmp")
+        shutil.move(f"tmp/{data_args.wandb_project}", training_args.output_dir)
+        shutil.rmtree("tmp")
 
         # Ensure large txt files can be pushed to the Hub with git-lfs
         with open(os.path.join(training_args.output_dir, ".gitattributes"), "r+") as f:
