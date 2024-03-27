@@ -344,8 +344,8 @@ def main():
             remove_columns=raw_datasets_features,
             num_proc=data_args.preprocessing_num_workers,
             desc="preprocess dataset",
-            batched=True,
-            batch_size=data_args.preprocessing_batch_size,
+            # batched=True,
+            # batch_size=data_args.preprocessing_batch_size,
             writer_batch_size=data_args.preprocessing_writer_batch_size
         )
         safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
