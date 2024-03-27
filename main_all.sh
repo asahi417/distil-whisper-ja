@@ -18,7 +18,7 @@ huggingface-cli login
 DATASET_CHUNK_ID=1
 CHUNK_START=0
 CHUNK_END=400
-python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 50 -s ${CHUNK_START} -e ${CHUNK_END}
+python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
 DATASET_CHUNK_ID=2
 CHUNK_START=400
@@ -79,7 +79,7 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
   --per_device_eval_batch_size 32 \
   --dataloader_num_workers 1 \
-  --preprocessing_num_workers 16 \
+  --preprocessing_num_workers 8 \
   --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \

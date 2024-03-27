@@ -113,14 +113,10 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    preprocessing_batch_size: int = field(
-        default=32,
-        metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
-    )
-    preprocessing_writer_batch_size: int = field(
-        default=128,
-        metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
-    )
+    # preprocessing_writer_batch_size: int = field(
+    #     default=128,
+    #     metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
+    # )
     audio_column_name: str = field(
         default="audio",
         metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
@@ -361,9 +357,7 @@ def main():
             remove_columns=raw_datasets_features,
             num_proc=data_args.preprocessing_num_workers,
             desc="preprocess dataset",
-            # batched=True,
-            # batch_size=data_args.preprocessing_batch_size,
-            writer_batch_size=data_args.preprocessing_writer_batch_size
+            # writer_batch_size=data_args.preprocessing_writer_batch_size
         )
         safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
 
