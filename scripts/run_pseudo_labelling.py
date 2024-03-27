@@ -289,6 +289,24 @@ def main():
     )
     model.eval()
 
+    assert model.config.decoder_start_token_id is not None, "`config.decoder_start_token_id` is not correctly defined"
+    if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
+        # We need to set the language and task ids for multilingual checkpoints
+        tokenizer.set_prefix_tokens(
+            language=data_args.language, task="transcribe", predict_timestamps=data_args.return_timestamps
+        )
+    elif data_args.language is not None:
+        raise ValueError(
+            "Setting language token for an English-only checkpoint is not permitted. The language argument should "
+            "only be set for multilingual checkpoints."
+        )
+
+    max_label_length = (
+        data_args.max_label_length if data_args.max_label_length is not None else model.config.max_length
+    )
+    model_input_name = feature_extractor.model_input_names[0]
+
+
     # 5. Load dataset
     dataset_name = data_args.dataset_name
     dataset_name_vectorized = f"{dataset_name}.vectorized"
@@ -352,23 +370,6 @@ def main():
 
     if PREPROCESSING_ONLY:
         return
-
-    assert model.config.decoder_start_token_id is not None, "`config.decoder_start_token_id` is not correctly defined"
-    if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
-        # We need to set the language and task ids for multilingual checkpoints
-        tokenizer.set_prefix_tokens(
-            language=data_args.language, task="transcribe", predict_timestamps=data_args.return_timestamps
-        )
-    elif data_args.language is not None:
-        raise ValueError(
-            "Setting language token for an English-only checkpoint is not permitted. The language argument should "
-            "only be set for multilingual checkpoints."
-        )
-
-    max_label_length = (
-        data_args.max_label_length if data_args.max_label_length is not None else model.config.max_length
-    )
-    model_input_name = feature_extractor.model_input_names[0]
 
     # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
     # so we just need to set the correct target sampling rate.
