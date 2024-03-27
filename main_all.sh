@@ -14,6 +14,7 @@ huggingface-cli login
 ####################
 # Download Dataset #
 ####################
+# 1
 DATASET_CHUNK_ID=1
 CHUNK_START=0
 CHUNK_END=400
@@ -24,6 +25,7 @@ CHUNK_START=400
 CHUNK_END=800
 python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s ${CHUNK_START} -e ${CHUNK_END}
 
+# 2
 DATASET_CHUNK_ID=3
 CHUNK_START=800
 CHUNK_END=1600
@@ -62,7 +64,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 ###################
 # Generate Labels #
 ###################
-export WANDB_DISABLED="true"
+export PREPROCESSING_ONLY=1
 export CUDA_VISIBLE_DEVICES=
 accelerate launch scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
@@ -72,15 +74,32 @@ accelerate launch scripts/run_pseudo_labelling.py \
   --per_device_eval_batch_size 32 \
   --dataloader_num_workers 1 \
   --preprocessing_num_workers 64 \
-  --logging_steps 10000 \
+  --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \
   --generation_num_beams 1 \
   --overwrite_output_dir \
   --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --preprocessing_only
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
+
+python scripts/run_pseudo_labelling.py \
+  --model_name_or_path "${TEACHER_MODEL}" \
+  --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
+  --dataset_config_name "${DATASET_TYPE}" \
+  --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
+  --per_device_eval_batch_size 32 \
+  --dataloader_num_workers 1 \
+  --preprocessing_num_workers 64 \
+  --logging_steps 100 \
+  --max_label_length 128 \
+  --language "ja" \
+  --generation_num_beams 1 \
+  --overwrite_output_dir \
+  --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
+
+
+export PREPROCESSING_ONLY=0
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --model_name_or_path "${TEACHER_MODEL}" \
@@ -90,15 +109,13 @@ accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
   --per_device_eval_batch_size 32 \
   --dataloader_num_workers 1 \
   --preprocessing_num_workers 64 \
-  --logging_steps 10000 \
+  --logging_steps 100 \
   --max_label_length 128 \
   --language "ja" \
   --generation_num_beams 1 \
   --overwrite_output_dir \
   --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --wandb_project "wandb.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-  --preprocessing_only
+  --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
 
 #####################
 # Filtering Dataset #

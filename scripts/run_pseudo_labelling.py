@@ -21,6 +21,7 @@ import csv
 # You can also adapt this script for your own pseudo-labelling tasks. Pointers for this are left as comments.
 import logging
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ from datasets import (
     DatasetDict,
     load_dataset,
 )
-from huggingface_hub import HfFolder
+from huggingface_hub import HfFolder, DatasetFilter, HfApi
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import (
@@ -58,6 +59,7 @@ os.environ['CURL_CA_BUNDLE'] = ''
 
 # disable warning message
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+PREPROCESSING_ONLY = bool(int(os.getenv("PREPROCESSING_ONLY", 0)))
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.34.0.dev0")
@@ -73,7 +75,7 @@ def safe_push(dataset_to_push, repo_name, config_name):
             dataset_to_push.push_to_hub(repo_name, config_name=config_name)
             break
         except Exception:
-            print(f"FAILED: push_to_hub on {repo_name} failed. wait 60 sec and retry soon...")
+            logger.warning(f"FAILED: push_to_hub on {repo_name} failed. wait 60 sec and retry soon...")
             time.sleep(60)
 
 
@@ -111,6 +113,14 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
+    preprocessing_batch_size: int = field(
+        default=32,
+        metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
+    )
+    preprocessing_writer_batch_size: int = field(
+        default=128,
+        metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
+    )
     audio_column_name: str = field(
         default="audio",
         metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
@@ -127,19 +137,9 @@ class DataTrainingArguments:
         default=128,
         metadata={"help": "Truncate transcriptions that are longer `max_label_length` tokens."},
     )
-    wandb_project: str = field(
-        default="distil-whisper",
-        metadata={"help": "The name of the wandb project."},
-    )
     return_timestamps: bool = field(
         default=True,
-        metadata={
-            "help": "Whether to return the timestamps with the text. This enables the `FlaxWhisperTimestampsLogitsProcessor`."
-        },
-    )
-    max_samples_per_split: Optional[int] = field(
-        default=None,
-        metadata={"help": "For debugging purposes, truncate the number of examples per split to this value if set."},
+        metadata={"help": "Whether to return the timestamps with the text."},
     )
     language: str = field(
         default=None,
@@ -150,21 +150,6 @@ class DataTrainingArguments:
             )
         },
     )
-    preprocessing_only: bool = field(
-        default=False,
-    )
-
-
-def shift_tokens_right(label_ids: np.array, decoder_start_token_id: int) -> np.ndarray:
-    """
-    Shift label ids one token to the right.
-    """
-    shifted_label_ids = np.zeros_like(label_ids)
-    shifted_label_ids[:, 1:] = label_ids[:, :-1]
-    shifted_label_ids[:, 0] = decoder_start_token_id
-
-    return shifted_label_ids
-
 
 @dataclass
 class DataCollatorSpeechSeq2SeqWithPadding:
@@ -254,20 +239,16 @@ def main():
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     # 2. Initialize the accelerator
-    # We will let the accelerator handle device placement for us in this example
-    # We simply have to specify the training precision and any trackers being used
-    # We'll use the same dtype arguments as our JAX/Flax training script and convert
-    # it to accelerate format
     kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=7200))
     accelerator = Accelerator(
         gradient_accumulation_steps=training_args.gradient_accumulation_steps,
         mixed_precision="bf16",
-        log_with=training_args.report_to,
+        log_with=None,
         project_dir=training_args.output_dir,
         kwargs_handlers=[kwargs],
     )
-
-    accelerator.init_trackers(project_name=data_args.wandb_project)
+    accelerator.init_trackers(project_name="wandb_dummy")
+    token = HfFolder().get_token()
 
     # 3. Set-up basic logging
     # Create one log on every process with the configuration for debugging
@@ -292,41 +273,76 @@ def main():
     logger.info(f"Training/evaluation parameters {training_args}")
 
     # 4. Load dataset
-    raw_datasets = DatasetDict()
-    token = HfFolder().get_token()
-    raw_datasets["train"] = load_dataset(
-        data_args.dataset_name,
-        data_args.dataset_config_name,
-        split="train",
-        trust_remote_code=True,
-        token=token,
-        num_proc=data_args.preprocessing_num_workers,
-        dataset_dir_suffix=data_args.dataset_dir_suffix
-    )
+    dataset_name = data_args.dataset_name
+    dataset_name_vectorized = f"{dataset_name}.vectorized"
+    # fetch available datasets
+    api = HfApi()
+    d_filter = DatasetFilter(author=os.path.dirname(data_args.dataset_name))
+    dataset_list = [d.id for d in api.list_datasets(filter=d_filter)]
+    if dataset_name_vectorized in dataset_list:
+        logger.info(f"load vectorized dataset {dataset_name_vectorized}")
+        vectorized_datasets = DatasetDict({
+            "train": load_dataset(
+                dataset_name_vectorized,
+                data_args.dataset_config_name,
+                split="train",
+                trust_remote_code=True,
+                token=token,
+                num_proc=data_args.preprocessing_num_workers,
+                dataset_dir_suffix=data_args.dataset_dir_suffix
+            )
+        })
+    else:
+        logger.info(f"load dataset {dataset_name}")
+        raw_datasets = DatasetDict({
+            "train": load_dataset(
+                dataset_name,
+                data_args.dataset_config_name,
+                split="train",
+                trust_remote_code=True,
+                token=token,
+                num_proc=data_args.preprocessing_num_workers,
+                dataset_dir_suffix=data_args.dataset_dir_suffix
+            )
+        })
+        assert data_args.audio_column_name in next(iter(raw_datasets.values())).column_names
+        assert data_args.text_column_name in next(iter(raw_datasets.values())).column_names
 
-    if data_args.audio_column_name not in next(iter(raw_datasets.values())).column_names:
-        raise ValueError(
-            f"--audio_column_name '{data_args.audio_column_name}' not found in dataset"
-            f" 'reazon_custom_loader.py'. Make sure to set `--audio_column_name` to"
-            " the correct audio column - one of"
-            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
-        )
+        def prepare_dataset(_batch):
+            # process audio
+            sample = _batch[data_args.audio_column_name]
+            inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+            # process audio length
+            _batch[model_input_name] = inputs.get(model_input_name)[0]
+            # process targets
+            input_str = _batch[data_args.text_column_name]
+            _batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+            # record the id of the sample as token ids
+            _batch["file_id"] = tokenizer(_batch[data_args.id_column_name], add_special_tokens=False).input_ids
+            return _batch
 
-    if data_args.text_column_name not in next(iter(raw_datasets.values())).column_names:
-        raise ValueError(
-            f"--text_column_name {data_args.text_column_name} not found in dataset"
-            f" 'reazon_custom_loader.py'. Make sure to set `--text_column_name` to the"
-            " correct text column - one of"
-            f" {', '.join(next(iter(raw_datasets.values())).column_names)}."
+        raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+        vectorized_datasets = raw_datasets.map(
+            prepare_dataset,
+            remove_columns=raw_datasets_features,
+            num_proc=data_args.preprocessing_num_workers,
+            desc="preprocess dataset",
+            batched=True,
+            batch_size=data_args.preprocessing_batch_size,
+            writer_batch_size=data_args.preprocessing_writer_batch_size
         )
+        safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
+
+    if PREPROCESSING_ONLY:
+        return
 
     # 5. Load pretrained model, tokenizer, and feature extractor
     config = WhisperConfig.from_pretrained(model_args.model_name_or_path, token=token)
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(model_args.model_name_or_path, token=token,)
+    feature_extractor = WhisperFeatureExtractor.from_pretrained(model_args.model_name_or_path, token=token)
     tokenizer = WhisperTokenizerFast.from_pretrained(
         model_args.model_name_or_path, use_fast=model_args.use_fast_tokenizer, token=token
     )
-    processor = WhisperProcessor.from_pretrained(model_args.model_name_or_path, token=token,)
+    processor = WhisperProcessor.from_pretrained(model_args.model_name_or_path, token=token)
     model = WhisperForConditionalGeneration.from_pretrained(
         model_args.model_name_or_path,
         config=config,
@@ -337,9 +353,7 @@ def main():
     )
     model.eval()
 
-    if model.config.decoder_start_token_id is None:
-        raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
-
+    assert model.config.decoder_start_token_id is not None, "`config.decoder_start_token_id` is not correctly defined"
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
         # We need to set the language and task ids for multilingual checkpoints
         tokenizer.set_prefix_tokens(
@@ -364,37 +378,6 @@ def main():
     )
     if not os.path.exists(training_args.output_dir):
         os.makedirs(training_args.output_dir)
-
-    # 7. Preprocessing the datasets.
-    # We need to read the audio files as arrays and tokenize the targets.
-    if data_args.max_samples_per_split is not None:
-        raw_datasets["train"] = raw_datasets["train"].select(range(data_args.max_samples_per_split))
-
-    def prepare_dataset(batch):
-        # process audio
-        sample = batch[data_args.audio_column_name]
-        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-
-        # process audio length
-        batch[model_input_name] = inputs.get(model_input_name)[0]
-
-        # process targets
-        input_str = batch[data_args.text_column_name]
-        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
-
-        # record the id of the sample as token ids
-        batch["file_id"] = tokenizer(batch[data_args.id_column_name], add_special_tokens=False).input_ids
-        return batch
-
-    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-    vectorized_datasets = raw_datasets.map(
-        prepare_dataset,
-        remove_columns=raw_datasets_features,
-        num_proc=data_args.preprocessing_num_workers,
-        desc="preprocess dataset",
-    )
-    # if data_args.preprocessing_only:
-    #     return
 
     # 8. Define Training Schedule
     per_device_eval_batch_size = int(training_args.per_device_eval_batch_size)
@@ -436,11 +419,8 @@ def main():
         f"  Total eval batch size (w. parallel & distributed) = {training_args.per_device_eval_batch_size * accelerator.num_processes}"
     )
     logger.info(f"  Predict labels with timestamps = {data_args.return_timestamps}")
-    # ======================== Evaluating ==============================
     eval_preds = []
-    eval_labels = []
     eval_ids = []
-
     eval_loader = DataLoader(
         vectorized_datasets["train"],
         batch_size=per_device_eval_batch_size,
@@ -450,34 +430,42 @@ def main():
     )
     eval_loader = accelerator.prepare(eval_loader)
     batches = tqdm(eval_loader, desc=f"Evaluating...", disable=not accelerator.is_local_main_process)
-
-    # make the split name pretty for librispeech etc
     output_csv = os.path.join(training_args.output_dir, "train-transcription.csv")
+    generated_csv_data = []
+    generated_file_ids = set()
+    if os.path.exists(output_csv):
+        with open(output_csv, "r", encoding="UTF8", newline="") as f:
+            csv_reader = csv.reader(f)
+            for row in csv_reader:
+                generated_csv_data.append([
+                    row[0], [int(i) for i in re.split(r"[\s\\n]+", row[1].replace('[', '').replace(']', ''))]]
+                )
+                generated_file_ids.add(row[0])
 
     for step, batch in enumerate(batches):
-
+        # Filter already generated transcription
         file_ids = batch.pop("file_ids")
-
+        valid_index = [n for n, i in enumerate(file_ids) if i not in generated_file_ids]
+        if len(valid_index) == 0:
+            continue
+        batch = {k: [v[i] for i in valid_index] for k, v in batch.items()}
+        file_ids = [file_ids[i] for i in valid_index]
         # Generate predictions and pad to max generated length
         generate_fn = model.module.generate if accelerator.num_processes > 1 else model.generate
         generated_ids = generate_fn(batch["input_features"].to(dtype=torch.bfloat16), **gen_kwargs)
         generated_ids = accelerator.pad_across_processes(generated_ids, dim=1, pad_index=tokenizer.pad_token_id)
         # Gather all predictions and targets
-        file_ids, generated_ids, labels = accelerator.gather_for_metrics(
-            (file_ids, generated_ids, batch["labels"])
-        )
+        file_ids, generated_ids, labels = accelerator.gather_for_metrics((file_ids, generated_ids, batch["labels"]))
         eval_preds.extend(generated_ids.cpu().numpy())
-        eval_labels.extend(labels.cpu().numpy())
         file_ids = tokenizer.batch_decode(file_ids, skip_special_tokens=True)
         eval_ids.extend(file_ids)
-
+        # Log
         if step % training_args.logging_steps == 0 and step > 0:
             batches.write(f"Saving transcriptions: step {step}")
             accelerator.wait_for_everyone()
-            csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+            csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
             with open(output_csv, "w", encoding="UTF8", newline="") as f:
                 writer = csv.writer(f)
-                # write multiple rows
                 writer.writerow(["file_id", "whisper_transcript"])
                 writer.writerows(csv_data)
 
@@ -485,12 +473,10 @@ def main():
     eval_preds = tokenizer.batch_decode(
         eval_preds, skip_special_tokens=True, decode_with_timestamps=data_args.return_timestamps
     )
-
-    batches.write(f"Saving final transcriptions for.")
-    csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+    batches.write("Saving final transcriptions for.")
+    csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
     with open(output_csv, "w", encoding="UTF8", newline="") as f:
         writer = csv.writer(f)
-        # write multiple rows
         writer.writerow(["file_id", "whisper_transcript"])
         writer.writerows(csv_data)
     raw_datasets["train"] = raw_datasets["train"].add_column("whisper_transcript", eval_preds)
