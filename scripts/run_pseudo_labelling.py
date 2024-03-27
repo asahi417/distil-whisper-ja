@@ -113,10 +113,6 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    # preprocessing_writer_batch_size: int = field(
-    #     default=128,
-    #     metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
-    # )
     audio_column_name: str = field(
         default="audio",
         metadata={"help": "The name of the dataset column containing the audio data. Defaults to 'audio'"},
@@ -337,6 +333,10 @@ def main():
         })
         assert data_args.audio_column_name in next(iter(raw_datasets.values())).column_names
         assert data_args.text_column_name in next(iter(raw_datasets.values())).column_names
+        raw_datasets = raw_datasets.cast_column(
+            data_args.audio_column_name,
+            datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
+        )
 
         def prepare_dataset(batch):
             # process audio
@@ -356,8 +356,7 @@ def main():
             prepare_dataset,
             remove_columns=raw_datasets_features,
             num_proc=data_args.preprocessing_num_workers,
-            desc="preprocess dataset",
-            # writer_batch_size=data_args.preprocessing_writer_batch_size
+            desc="preprocess dataset"
         )
         safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
 
@@ -366,10 +365,6 @@ def main():
 
     # 6. Resample speech dataset: `datasets` takes care of automatically loading and resampling the audio,
     # so we just need to set the correct target sampling rate.
-    raw_datasets = raw_datasets.cast_column(
-        data_args.audio_column_name,
-        datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
-    )
     if not os.path.exists(training_args.output_dir):
         os.makedirs(training_args.output_dir)
 
