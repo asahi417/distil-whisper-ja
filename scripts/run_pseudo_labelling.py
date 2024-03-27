@@ -306,7 +306,6 @@ def main():
     )
     model_input_name = feature_extractor.model_input_names[0]
 
-
     # 5. Load dataset
     dataset_name = data_args.dataset_name
     dataset_name_vectorized = f"{dataset_name}.vectorized"
@@ -471,9 +470,6 @@ def main():
                 writer.writerows(csv_data)
 
     accelerator.wait_for_everyone()
-    eval_preds = tokenizer.batch_decode(
-        eval_preds, skip_special_tokens=True, decode_with_timestamps=data_args.return_timestamps
-    )
     batches.write("Saving final transcriptions for.")
     csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
     with open(output_csv, "w", encoding="UTF8", newline="") as f:
