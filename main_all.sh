@@ -64,6 +64,7 @@ python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s 
 ###################
 # Generate Labels #
 ###################
+export WANDB_DISABLED="true"
 export PREPROCESSING_ONLY=1
 export CUDA_VISIBLE_DEVICES=
 accelerate launch scripts/run_pseudo_labelling.py \

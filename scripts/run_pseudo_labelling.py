@@ -272,7 +272,24 @@ def main():
         transformers.utils.logging.set_verbosity_error()
     logger.info(f"Training/evaluation parameters {training_args}")
 
-    # 4. Load dataset
+    # 4. Load pretrained model, tokenizer, and feature extractor
+    config = WhisperConfig.from_pretrained(model_args.model_name_or_path, token=token)
+    feature_extractor = WhisperFeatureExtractor.from_pretrained(model_args.model_name_or_path, token=token)
+    tokenizer = WhisperTokenizerFast.from_pretrained(
+        model_args.model_name_or_path, use_fast=model_args.use_fast_tokenizer, token=token
+    )
+    processor = WhisperProcessor.from_pretrained(model_args.model_name_or_path, token=token)
+    model = WhisperForConditionalGeneration.from_pretrained(
+        model_args.model_name_or_path,
+        config=config,
+        token=token,
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.bfloat16,
+        use_flash_attention_2=False,
+    )
+    model.eval()
+
+    # 5. Load dataset
     dataset_name = data_args.dataset_name
     dataset_name_vectorized = f"{dataset_name}.vectorized"
     # fetch available datasets
@@ -335,23 +352,6 @@ def main():
 
     if PREPROCESSING_ONLY:
         return
-
-    # 5. Load pretrained model, tokenizer, and feature extractor
-    config = WhisperConfig.from_pretrained(model_args.model_name_or_path, token=token)
-    feature_extractor = WhisperFeatureExtractor.from_pretrained(model_args.model_name_or_path, token=token)
-    tokenizer = WhisperTokenizerFast.from_pretrained(
-        model_args.model_name_or_path, use_fast=model_args.use_fast_tokenizer, token=token
-    )
-    processor = WhisperProcessor.from_pretrained(model_args.model_name_or_path, token=token)
-    model = WhisperForConditionalGeneration.from_pretrained(
-        model_args.model_name_or_path,
-        config=config,
-        token=token,
-        low_cpu_mem_usage=True,
-        torch_dtype=torch.bfloat16,
-        use_flash_attention_2=False,
-    )
-    model.eval()
 
     assert model.config.decoder_start_token_id is not None, "`config.decoder_start_token_id` is not correctly defined"
     if hasattr(model.generation_config, "is_multilingual") and model.generation_config.is_multilingual:
