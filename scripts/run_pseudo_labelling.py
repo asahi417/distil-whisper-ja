@@ -325,18 +325,18 @@ def main():
         assert data_args.audio_column_name in next(iter(raw_datasets.values())).column_names
         assert data_args.text_column_name in next(iter(raw_datasets.values())).column_names
 
-        def prepare_dataset(_batch):
+        def prepare_dataset(batch):
             # process audio
-            sample = _batch[data_args.audio_column_name]
+            sample = batch[data_args.audio_column_name]
             inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
             # process audio length
-            _batch[model_input_name] = inputs.get(model_input_name)[0]
+            batch[model_input_name] = inputs.get(model_input_name)[0]
             # process targets
-            input_str = _batch[data_args.text_column_name]
-            _batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+            input_str = batch[data_args.text_column_name]
+            batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
             # record the id of the sample as token ids
-            _batch["file_id"] = tokenizer(_batch[data_args.id_column_name], add_special_tokens=False).input_ids
-            return _batch
+            batch["file_id"] = tokenizer(batch[data_args.id_column_name], add_special_tokens=False).input_ids
+            return batch
 
         raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
         vectorized_datasets = raw_datasets.map(
