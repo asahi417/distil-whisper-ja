@@ -300,65 +300,65 @@ def main():
 
     # 5. Load dataset
     dataset_name = data_args.dataset_name
-    dataset_name_vectorized = f"{dataset_name}.vectorized"
+    # dataset_name_vectorized = f"{dataset_name}.vectorized"
     # fetch available datasets
-    api = HfApi()
-    d_filter = DatasetFilter(author=os.path.dirname(data_args.dataset_name))
-    dataset_list = [d.id for d in api.list_datasets(filter=d_filter)]
-    if dataset_name_vectorized in dataset_list:
-        logger.info(f"load vectorized dataset {dataset_name_vectorized}")
-        vectorized_datasets = DatasetDict({
-            "train": load_dataset(
-                dataset_name_vectorized,
-                data_args.dataset_config_name,
-                split="train",
-                trust_remote_code=True,
-                token=token,
-                num_proc=data_args.preprocessing_num_workers,
-                dataset_dir_suffix=data_args.dataset_dir_suffix
-            )
-        })
-    else:
-        logger.info(f"load dataset {dataset_name}")
-        raw_datasets = DatasetDict({
-            "train": load_dataset(
-                dataset_name,
-                data_args.dataset_config_name,
-                split="train",
-                trust_remote_code=True,
-                token=token,
-                num_proc=data_args.preprocessing_num_workers,
-                dataset_dir_suffix=data_args.dataset_dir_suffix
-            )
-        })
-        assert data_args.audio_column_name in next(iter(raw_datasets.values())).column_names
-        assert data_args.text_column_name in next(iter(raw_datasets.values())).column_names
-        raw_datasets = raw_datasets.cast_column(
-            data_args.audio_column_name,
-            datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
-        )
-
-        def prepare_dataset(batch):
-            # process audio
-            sample = batch[data_args.audio_column_name]
-            inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
-            # process audio length
-            batch[model_input_name] = inputs.get(model_input_name)[0]
-            # process targets
-            input_str = batch[data_args.text_column_name]
-            batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
-            # record the id of the sample as token ids
-            batch["file_id"] = tokenizer(batch[data_args.id_column_name], add_special_tokens=False).input_ids
-            return batch
-
-        raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
-        vectorized_datasets = raw_datasets.map(
-            prepare_dataset,
-            remove_columns=raw_datasets_features,
+    # api = HfApi()
+    # d_filter = DatasetFilter(author=os.path.dirname(data_args.dataset_name))
+    # dataset_list = [d.id for d in api.list_datasets(filter=d_filter)]
+    # if dataset_name_vectorized in dataset_list:
+    #     logger.info(f"load vectorized dataset {dataset_name_vectorized}")
+    #     vectorized_datasets = DatasetDict({
+    #         "train": load_dataset(
+    #             dataset_name_vectorized,
+    #             data_args.dataset_config_name,
+    #             split="train",
+    #             trust_remote_code=True,
+    #             token=token,
+    #             num_proc=data_args.preprocessing_num_workers,
+    #             dataset_dir_suffix=data_args.dataset_dir_suffix
+    #         )
+    #     })
+    # else:
+    logger.info(f"load dataset {dataset_name}")
+    raw_datasets = DatasetDict({
+        "train": load_dataset(
+            dataset_name,
+            data_args.dataset_config_name,
+            split="train",
+            trust_remote_code=True,
+            token=token,
             num_proc=data_args.preprocessing_num_workers,
-            desc="preprocess dataset"
+            dataset_dir_suffix=data_args.dataset_dir_suffix
         )
-        safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
+    })
+    assert data_args.audio_column_name in next(iter(raw_datasets.values())).column_names
+    assert data_args.text_column_name in next(iter(raw_datasets.values())).column_names
+    raw_datasets = raw_datasets.cast_column(
+        data_args.audio_column_name,
+        datasets.features.Audio(sampling_rate=feature_extractor.sampling_rate),
+    )
+
+    def prepare_dataset(batch):
+        # process audio
+        sample = batch[data_args.audio_column_name]
+        inputs = feature_extractor(sample["array"], sampling_rate=sample["sampling_rate"])
+        # process audio length
+        batch[model_input_name] = inputs.get(model_input_name)[0]
+        # process targets
+        input_str = batch[data_args.text_column_name]
+        batch["labels"] = tokenizer(input_str, max_length=max_label_length, truncation=True).input_ids
+        # record the id of the sample as token ids
+        batch["file_id"] = tokenizer(batch[data_args.id_column_name], add_special_tokens=False).input_ids
+        return batch
+
+    raw_datasets_features = list(next(iter(raw_datasets.values())).features.keys())
+    vectorized_datasets = raw_datasets.map(
+        prepare_dataset,
+        remove_columns=raw_datasets_features,
+        num_proc=data_args.preprocessing_num_workers,
+        desc="preprocess dataset"
+    )
+        # safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
 
     if PREPROCESSING_ONLY:
         return
