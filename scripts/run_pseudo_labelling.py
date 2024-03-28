@@ -358,8 +358,19 @@ def main():
         num_proc=data_args.preprocessing_num_workers,
         desc="preprocess dataset"
     )
-        # safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
-
+    # safe_push(vectorized_datasets, dataset_name_vectorized, data_args.dataset_config_name)
+    # generated_csv_data = []
+    # generated_file_ids = set()
+    # output_csv = os.path.join(training_args.output_dir, "train-transcription.csv")
+    # if os.path.exists(output_csv):
+    #     with open(output_csv, "r", encoding="UTF8", newline="") as f:
+    #         csv_reader = csv.reader(f)
+    #         for row in csv_reader:
+    #             generated_csv_data.append([
+    #                 row[0], [int(i) for i in re.split(r"[\s\\n]+", row[1].replace('[', '').replace(']', ''))]]
+    #             )
+    #             generated_file_ids.add(row[0])
+    #
     if PREPROCESSING_ONLY:
         return
 
@@ -418,30 +429,23 @@ def main():
         pin_memory=True,
     )
     eval_loader = accelerator.prepare(eval_loader)
-    batches = tqdm(eval_loader, desc=f"Evaluating...", disable=not accelerator.is_local_main_process)
     output_csv = os.path.join(training_args.output_dir, "train-transcription.csv")
-    generated_csv_data = []
-    generated_file_ids = set()
-    if os.path.exists(output_csv):
-        with open(output_csv, "r", encoding="UTF8", newline="") as f:
-            csv_reader = csv.reader(f)
-            for row in csv_reader:
-                generated_csv_data.append([
-                    row[0], [int(i) for i in re.split(r"[\s\\n]+", row[1].replace('[', '').replace(']', ''))]]
-                )
-                generated_file_ids.add(row[0])
-
+    batches = tqdm(eval_loader, desc=f"Evaluating...", disable=not accelerator.is_local_main_process)
     for step, batch in enumerate(batches):
-        # Filter already generated transcription
         file_ids = batch.pop("file_ids")
-        print(file_ids)
-        print(type(file_ids[0]))
-        valid_index = [n for n, i in enumerate(file_ids) if i not in generated_file_ids]
-        if len(valid_index) == 0:
-            continue
-        input_features = batch["input_features"].index_select(0, torch.LongTensor(valid_index))
-        label = batch["labels"].index_select(0, torch.LongTensor(valid_index))
-        file_ids = [file_ids[i] for i in valid_index]
+
+        # Filter already generated transcription
+        # print(file_ids)
+        # print(type(file_ids[0]))
+        # valid_index = [n for n, i in enumerate(file_ids) if i not in generated_file_ids]
+        # if len(valid_index) == 0:
+        #     continue
+        # input_features = batch["input_features"].index_select(0, torch.LongTensor(valid_index))
+        # label = batch["labels"].index_select(0, torch.LongTensor(valid_index))
+        # file_ids = [file_ids[i] for i in valid_index]
+
+        input_features = batch["input_features"]
+        label = batch["labels"]
         # Generate predictions and pad to max generated length
         generate_fn = model.module.generate if accelerator.num_processes > 1 else model.generate
         generated_ids = generate_fn(input_features.to(dtype=torch.bfloat16), **gen_kwargs)
@@ -455,7 +459,8 @@ def main():
         if step % training_args.logging_steps == 0 and step > 0:
             batches.write(f"Saving transcriptions: step {step}")
             accelerator.wait_for_everyone()
-            csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+            # csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+            csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
             with open(output_csv, "w", encoding="UTF8", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(["file_id", "whisper_transcript"])
@@ -463,7 +468,8 @@ def main():
 
     accelerator.wait_for_everyone()
     batches.write("Saving final transcriptions for.")
-    csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+    # csv_data = generated_csv_data + [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
+    csv_data = [[eval_ids[i], eval_preds[i]] for i in range(len(eval_preds))]
     with open(output_csv, "w", encoding="UTF8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["file_id", "whisper_transcript"])
