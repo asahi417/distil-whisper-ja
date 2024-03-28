@@ -434,17 +434,20 @@ def main():
     for step, batch in enumerate(batches):
         # Filter already generated transcription
         file_ids = batch.pop("file_ids")
+        print(file_ids)
+        print(type(file_ids[0]))
         valid_index = [n for n, i in enumerate(file_ids) if i not in generated_file_ids]
         if len(valid_index) == 0:
             continue
-        batch = {k: [v[i] for i in valid_index] for k, v in batch.items()}
+        input_features = batch["input_features"].index_select(0, torch.LongTensor(valid_index))
+        label = batch["labels"].index_select(0, torch.LongTensor(valid_index))
         file_ids = [file_ids[i] for i in valid_index]
         # Generate predictions and pad to max generated length
         generate_fn = model.module.generate if accelerator.num_processes > 1 else model.generate
-        generated_ids = generate_fn(batch["input_features"].to(dtype=torch.bfloat16), **gen_kwargs)
+        generated_ids = generate_fn(input_features.to(dtype=torch.bfloat16), **gen_kwargs)
         generated_ids = accelerator.pad_across_processes(generated_ids, dim=1, pad_index=tokenizer.pad_token_id)
         # Gather all predictions and targets
-        file_ids, generated_ids, labels = accelerator.gather_for_metrics((file_ids, generated_ids, batch["labels"]))
+        file_ids, generated_ids, labels = accelerator.gather_for_metrics((file_ids, generated_ids, label))
         eval_preds.extend(generated_ids.cpu().numpy())
         file_ids = tokenizer.batch_decode(file_ids, skip_special_tokens=True)
         eval_ids.extend(file_ids)

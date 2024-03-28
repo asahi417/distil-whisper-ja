@@ -15,26 +15,7 @@ process_chunk () {
   DATASET_CHUNK_ID=${1}
   CHUNK_START=${2}
   CHUNK_END=${3}
-  python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s "${CHUNK_START}" -e "${CHUNK_END}"
   export WANDB_DISABLED="true"
-  export PREPROCESSING_ONLY=1
-  export CUDA_VISIBLE_DEVICES=
-  accelerate launch scripts/run_pseudo_labelling.py \
-    --model_name_or_path "${TEACHER_MODEL}" \
-    --dataset_name "${PWD}/scripts/reazonspeech_manual_dataloader.py" \
-    --dataset_config_name "${DATASET_TYPE}" \
-    --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
-    --per_device_eval_batch_size 32 \
-    --dataloader_num_workers 1 \
-    --preprocessing_num_workers 8 \
-    --logging_steps 100 \
-    --max_label_length 128 \
-    --language "ja" \
-    --generation_num_beams 1 \
-    --overwrite_output_dir \
-    --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
-    --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
-
   export PREPROCESSING_ONLY=0
   export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
   accelerate launch --multi_gpu scripts/run_pseudo_labelling.py \
@@ -44,7 +25,7 @@ process_chunk () {
     --dataset_dir_suffix "${CHUNK_START}_${CHUNK_END}" \
     --per_device_eval_batch_size 32 \
     --dataloader_num_workers 1 \
-    --preprocessing_num_workers 16 \
+    --preprocessing_num_workers 1 \
     --logging_steps 100 \
     --max_label_length 128 \
     --language "ja" \
@@ -52,8 +33,12 @@ process_chunk () {
     --overwrite_output_dir \
     --output_dir "output.${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}" \
     --hub_model_id "${HF_ORG}/${HF_DATASET_ALIAS}_${DATASET_CHUNK_ID}"
-
-
+}
+process_chunk () {
+  DATASET_CHUNK_ID=${1}
+  CHUNK_START=${2}
+  CHUNK_END=${3}
+  python scripts/reazonspeech_manual_downloader.py -t "${DATASET_TYPE}" -p 100 -s "${CHUNK_START}" -e "${CHUNK_END}"
 }
 
 ####################
@@ -61,7 +46,8 @@ process_chunk () {
 ####################
 process_chunk 1 0 50
 process_chunk 2 50 100
-
+process_chunk 3 100 150
+process_chunk 4 150 200
 # 1
 DATASET_CHUNK_ID=1
 CHUNK_START=0
